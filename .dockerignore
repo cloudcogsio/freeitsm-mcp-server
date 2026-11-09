@@ -1,0 +1,7 @@
+# Allow-list: the build needs only these. Keeps .env, .git and local notes out of the context.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!src/
+!LICENSE

@@ -19,7 +19,7 @@ fixed set of summary tools. This one covers the whole REST API, including writes
 
 ## Requirements
 
-- Node.js 20.12 or later
+- Node.js 20.12 or later, or Docker (see [Docker](#docker))
 - A FreeITSM install with the REST API, and an API key from **System > API** with the
   permissions you want the assistant to have. A dedicated analyst (e.g. "AI Assistant") keeps
   the audit trail readable.
@@ -64,6 +64,53 @@ JSON entry of this shape:
 The tool list is fixed when the server starts. After changing the key's permissions, restart the
 server. The startup line on stderr says which key it uses, how many endpoints it may call, and
 whether it is `READ-ONLY` or `WRITABLE`.
+
+## Docker
+
+The image is built from pinned base images. It runs on a distroless Node runtime (no shell, no
+package manager) as a non-root user, and holds only production dependencies. The server's files
+are owned by root, so the process cannot modify its own code.
+
+```bash
+docker build -t freeitsm-mcp-server .
+```
+
+The server speaks MCP over stdio, so the client starts the container itself and keeps stdin
+open (`-i`). Recommended entry, locked down:
+
+```json
+{
+  "mcpServers": {
+    "freeitsm-api": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
+        "--memory=256m", "--pids-limit=64",
+        "-e", "FREEITSM_URL", "-e", "FREEITSM_API_KEY", "-e", "FREEITSM_READ_ONLY",
+        "freeitsm-mcp-server"
+      ],
+      "env": {
+        "FREEITSM_URL": "https://itsm.example.com",
+        "FREEITSM_API_KEY": "fitsm_xxx",
+        "FREEITSM_READ_ONLY": "true"
+      }
+    }
+  }
+}
+```
+
+- `-e NAME` without a value copies the variable from the client's environment, so the key is not
+  written on the `docker` command line (which other local users could see in the process list).
+- The server needs no writable filesystem, so `--read-only` works as-is.
+- **Uploads:** mount the folder read-only and point the variable at the mount, e.g. add
+  `"-v", "/path/to/evidence:/uploads:ro", "-e", "FREEITSM_UPLOAD_DIR=/uploads"`.
+- **FreeITSM on the same machine:** inside the container `localhost` is the container itself.
+  Use `http://host.docker.internal:<port>` (on Linux also add
+  `"--add-host=host.docker.internal:host-gateway"`). The server will warn that this is plain
+  http, which is fine for a local install. Use https for anything remote.
+- To restrict network access further, attach the container to a Docker network that can reach
+  only the FreeITSM host.
 
 ## Tools
 
