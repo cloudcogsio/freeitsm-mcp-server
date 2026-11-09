@@ -11,6 +11,14 @@
   ],
   "author": "Ricardo Assing",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cloudcogsio/freeitsm-mcp-server.git"
+  },
+  "homepage": "https://github.com/cloudcogsio/freeitsm-mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/cloudcogsio/freeitsm-mcp-server/issues"
+  },
   "type": "module",
   "bin": {
     "freeitsm-mcp-server": "dist/index.js"
