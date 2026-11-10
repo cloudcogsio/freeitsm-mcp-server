@@ -10,7 +10,8 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 
 if (existsSync(".env")) process.loadEnvFile(".env");
 const env = Object.fromEntries(
-  Object.entries(process.env).filter(([k]) => k.startsWith("FREEITSM_")),
+  // NODE_EXTRA_CA_CERTS too, so an install with a private CA works
+  Object.entries(process.env).filter(([k]) => k.startsWith("FREEITSM_") || k === "NODE_EXTRA_CA_CERTS"),
 ) as Record<string, string>;
 if (!env.FREEITSM_URL || !env.FREEITSM_API_KEY) {
   console.error("Set FREEITSM_URL and FREEITSM_API_KEY (see .env.example).");
