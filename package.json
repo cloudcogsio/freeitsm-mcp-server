@@ -1,6 +1,6 @@
 {
   "name": "freeitsm-mcp-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Standalone MCP server for the FreeITSM REST API (v1). Everything it can do is governed by the API key it is given.",
   "keywords": [
     "mcp",

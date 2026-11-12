@@ -57,7 +57,7 @@ JSON entry of this shape:
 | `FREEITSM_URL` | Base URL of the install (`https://itsm.example.com`; a URL ending in `/api/v1` also works). Use https: plain http to a remote host is warned about, because the key would travel unencrypted. |
 | `FREEITSM_API_KEY` | The API key. Required. |
 | `FREEITSM_READ_ONLY` | `true`/`false` (also `1`/`0`, `yes`/`no`, `on`/`off`). `true` hides every write tool. Any other value stops the server, so a typo never leaves it writable. |
-| `FREEITSM_UPLOAD_DIR` | Folder that `freeitsm_upload_change_evidence` may read local files from. Unset (the default): local files cannot be uploaded at all; base64 content still can. |
+| `FREEITSM_UPLOAD_DIR` | Folder that the upload tools (`freeitsm_upload_change_evidence`, `freeitsm_add_project_document`) may read local files from. Unset (the default): local files cannot be uploaded at all; base64 content still can. |
 | `FREEITSM_UPLOAD_MAX_MB` | Largest upload accepted, default 20 |
 | `FREEITSM_TIMEOUT_MS` | Per-request timeout, default 30000 |
 
@@ -119,12 +119,13 @@ Dedicated tools (each appears only if the key has the permission it needs):
 | Tool | Endpoint(s) |
 |---|---|
 | `freeitsm_whoami` | `GET /ping` - the key's analyst, companies, permissions |
-| `freeitsm_search_tickets`, `freeitsm_get_ticket` | `GET /tickets`, `/tickets/{id}` (+ notes, thread, SLA, time, audit) |
+| `freeitsm_search_tickets`, `freeitsm_get_ticket` | `GET /tickets`, `/tickets/{id}` (+ notes, thread, SLA, time, audit, watchers, forms, checklists) |
 | `freeitsm_create_ticket`, `freeitsm_update_ticket` | `POST /tickets`, `PATCH /tickets/{id}` |
 | `freeitsm_add_ticket_note`, `freeitsm_log_time` | `POST /tickets/{id}/notes`, `/time-entries` |
 | `freeitsm_search_knowledge`, `freeitsm_get_article` | `GET /knowledge/articles[/{id}]` |
 | `freeitsm_search_changes`, `freeitsm_get_change` | `GET /changes[/{id}]` |
 | `freeitsm_upload_change_evidence` | `POST /changes/{id}/attachments` (multipart) |
+| `freeitsm_add_project_document` | `POST /projects/{id}/documents` (a file as multipart, or a link as JSON) |
 | `freeitsm_search_problems`, `freeitsm_search_assets` | `GET /problems`, `GET /assets` |
 | `freeitsm_reference_data` | the `reference.read` lookup lists (statuses, priorities, types...) |
 
@@ -139,7 +140,9 @@ Generic tools, covering every endpoint:
 
 The endpoint catalogue is read at startup from the install's own `/api/v1/openapi.json` and
 `/api/v1/spec.json`, so it matches the FreeITSM version you connect to. An endpoint whose required
-permission cannot be determined is treated as unavailable.
+permission cannot be determined is treated as unavailable. An endpoint whose description says it
+needs a second permission ("Needs documents.download as well as projects.read") is available only
+when the key has both.
 
 ## Security notes
 
@@ -156,6 +159,10 @@ permission cannot be determined is treated as unavailable.
 - **Paths are checked strictly.** The generic tools accept only plain API paths (no `..`,
   percent-encoding or backslashes), so the endpoint that is checked is the endpoint that is called.
   Redirects are never followed, so the key is only ever sent to `FREEITSM_URL`.
+- **Refused calls count against the key.** Recent FreeITSM versions count 403/404 answers per
+  key and can switch a key off after many in a short time; document downloads are logged and
+  limited per hour. This server checks permissions before calling, so it does not send calls the
+  key would be refused, and tells the assistant not to guess ids.
 
 ## Development
 

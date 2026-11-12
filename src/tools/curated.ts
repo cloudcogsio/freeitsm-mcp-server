@@ -45,6 +45,55 @@ export async function resolveUploadFile(uploadDir: string | null, filePath: stri
   return real;
 }
 
+/** The input fields for a file: file_path only when local-file uploads are on. */
+function fileFields(uploadDir: string | null) {
+  return {
+    ...(uploadDir ? { file_path: z.string().optional().describe(`Path of a file inside ${uploadDir}`) } : {}),
+    content_base64: z.string().optional().describe("File content, base64 encoded"),
+    filename: z.string().optional().describe("File name; required with content_base64"),
+  };
+}
+
+const clientReference = z
+  .string()
+  .regex(/^[A-Za-z0-9._:-]{1,128}$/)
+  .optional()
+  .describe("Your own reference, so a retry does not upload twice");
+
+/**
+ * The bytes and name of the file a tool was given (file_path or content_base64 +
+ * filename), or a message saying what is wrong. null when no file was given.
+ */
+async function loadUpload(
+  config: Deps["config"],
+  // file_path is optional in the schema (present only with an upload folder), hence unknown here
+  args: { file_path?: unknown; content_base64?: string; filename?: string },
+): Promise<{ bytes: Uint8Array; name: string } | string | null> {
+  const { uploadDir, uploadMaxBytes } = config;
+  const tooBig = `The file is larger than the ${+(uploadMaxBytes / 1024 / 1024).toFixed(1)} MB upload limit.`;
+  let bytes: Uint8Array;
+  let name: string;
+  if (typeof args.file_path === "string" && args.file_path) {
+    const file = await resolveUploadFile(uploadDir, args.file_path, uploadMaxBytes);
+    bytes = await readFile(file);
+    name = args.filename ?? basename(file);
+  } else if (args.content_base64) {
+    if (!args.filename) return "Give filename together with content_base64.";
+    if (args.content_base64.length > Math.ceil(uploadMaxBytes / 3) * 4 + 4) return tooBig;
+    bytes = Buffer.from(args.content_base64, "base64");
+    name = args.filename;
+  } else {
+    return null;
+  }
+  return bytes.byteLength > uploadMaxBytes ? tooBig : { bytes, name };
+}
+
+function uploadHelp(uploadDir: string | null): string {
+  return uploadDir
+    ? `Give either file_path (a file inside ${uploadDir}; nothing outside that folder can be read) or content_base64 with filename.`
+    : "Give content_base64 with filename. (Uploading local files is switched off: FREEITSM_UPLOAD_DIR is not set.)";
+}
+
 /** Drop undefined so only the fields the model set are sent (PATCH semantics). */
 function defined<T extends Record<string, unknown>>(obj: T): Partial<T> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
@@ -116,20 +165,24 @@ Examples:
       sla: "/tickets/{id}/sla",
       time_entries: "/tickets/{id}/time-entries",
       audit: "/tickets/{id}/audit",
+      watchers: "/tickets/{id}/watchers",
+      forms: "/tickets/{id}/forms",
+      checklists: "/tickets/{id}/checklists",
     } as const;
     type Extra = keyof typeof extras;
     server.registerTool(
       "freeitsm_get_ticket",
       {
         title: "Get a ticket",
-        description: `Get one ticket's full detail, optionally with its notes, email thread, SLA state, time entries and audit history in the same call.
-Parts the key may not read are reported as unavailable rather than failing the whole call.`,
+        description: `Get one ticket's full detail, optionally with its notes, email thread, SLA state, time entries, audit history, watchers, forms and checklists in the same call.
+Parts the key may not read are reported as unavailable rather than failing the whole call.
+To answer a checklist step, use freeitsm_api_write with PATCH /tickets/{id}/checklists/steps/{step_id}.`,
         inputSchema: z.strictObject({
           id: id("Ticket"),
           include: z
             .array(z.enum(Object.keys(extras) as [Extra, ...Extra[]]))
             .default([])
-            .describe("Extra parts to fetch: notes, thread, sla, time_entries, audit"),
+            .describe("Extra parts to fetch: notes, thread, sla, time_entries, audit, watchers, forms, checklists"),
         }),
         annotations: READ,
       },
@@ -354,49 +407,71 @@ Examples:
       {
         title: "Upload change evidence",
         description: `Attach an evidence file to a change (test results, screenshots, sign-off), at most ${maxMb} MB.
-${
-  uploadDir
-    ? `Give either file_path (a file inside ${uploadDir}; nothing outside that folder can be read) or content_base64 with filename.`
-    : "Give content_base64 with filename. (Uploading local files is switched off: FREEITSM_UPLOAD_DIR is not set.)"
-}
+${uploadHelp(uploadDir)}
 Only upload what the user asked for. Does not change the change's status or approval. Retrying with the same client_reference and identical file is safe.`,
         inputSchema: z.strictObject({
           change_id: id("Change"),
-          ...(uploadDir ? { file_path: z.string().optional().describe(`Path of a file inside ${uploadDir}`) } : {}),
-          content_base64: z.string().optional().describe("File content, base64 encoded"),
-          filename: z.string().optional().describe("File name; required with content_base64"),
-          client_reference: z
-            .string()
-            .regex(/^[A-Za-z0-9._:-]{1,128}$/)
-            .optional()
-            .describe("Your own reference, so a retry does not upload twice"),
+          ...fileFields(uploadDir),
+          client_reference: clientReference,
         }),
         annotations: CREATE,
       },
       async (args, ctx) => {
-        const { change_id, content_base64, filename, client_reference } = args;
-        const file_path = (args as { file_path?: string }).file_path;
-        let bytes: Uint8Array;
-        let name: string;
-        if (file_path) {
-          const file = await resolveUploadFile(uploadDir, file_path, uploadMaxBytes);
-          bytes = await readFile(file);
-          name = filename ?? basename(file);
-        } else if (content_base64 && filename) {
-          if (content_base64.length > Math.ceil(uploadMaxBytes / 3) * 4 + 4) {
-            return text(`The file is larger than the ${maxMb} MB upload limit.`);
-          }
-          bytes = Buffer.from(content_base64, "base64");
-          name = filename;
-        } else {
-          return text(uploadDir ? "Give file_path, or content_base64 together with filename." : "Give content_base64 together with filename.");
-        }
-        if (bytes.byteLength > uploadMaxBytes) return text(`The file is larger than the ${maxMb} MB upload limit.`);
+        const { change_id, client_reference } = args;
+        const file = await loadUpload(deps.config, args);
+        if (file === null) return text(uploadDir ? "Give file_path, or content_base64 together with filename." : "Give content_base64 together with filename.");
+        if (typeof file === "string") return text(file);
+        const { bytes, name } = file;
         const form = new FormData();
         form.append("file", new Blob([new Uint8Array(bytes)]), name);
         if (client_reference) form.append("client_reference", client_reference);
         const res = await call(deps, "POST", `/changes/${change_id}/attachments`, { form, signal: ctx.mcpReq.signal });
         return render(res, `Evidence uploaded to change ${change_id} (HTTP ${res.status})`);
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------- projects
+  if (can("POST", "/projects/{id}/documents")) {
+    const { uploadDir, uploadMaxBytes } = deps.config;
+    const maxMb = +(uploadMaxBytes / 1024 / 1024).toFixed(1);
+    server.registerTool(
+      "freeitsm_add_project_document",
+      {
+        title: "Add a project document",
+        description: `Add a document to a project: either a file (at most ${maxMb} MB here; the install's own file types and size limit also apply) or a link (external_url, http or https).
+For a file: ${uploadHelp(uploadDir)}
+Only add what the user asked for. Retrying with the same client_reference and the same content is safe.
+To attach a document already in FreeITSM, use freeitsm_api_write with POST /projects/{id}/documents/{document_id}/link.`,
+        inputSchema: z.strictObject({
+          project_id: id("Project"),
+          ...fileFields(uploadDir),
+          external_url: z.string().url().optional().describe("Link to a document held elsewhere (instead of a file)"),
+          title: z.string().optional().describe("Default: the file name or the URL"),
+          description: z.string().optional().describe("Free text, searchable"),
+          client_reference: clientReference,
+        }),
+        annotations: CREATE,
+      },
+      async (args, ctx) => {
+        const { project_id, external_url, title, description, client_reference } = args;
+        const file = await loadUpload(deps.config, args);
+        if (typeof file === "string") return text(file);
+        if (file && external_url) return text("Give either a file or external_url, not both.");
+        const path = `/projects/${project_id}/documents`;
+        const signal = ctx.mcpReq.signal;
+        let res;
+        if (file) {
+          const form = new FormData();
+          form.append("file", new Blob([new Uint8Array(file.bytes)]), file.name);
+          for (const [k, v] of Object.entries({ title, description, client_reference })) if (v !== undefined) form.append(k, v);
+          res = await call(deps, "POST", path, { form, signal });
+        } else if (external_url) {
+          res = await call(deps, "POST", path, { body: defined({ external_url, title, description, client_reference }), signal });
+        } else {
+          return text(`Give a file (${uploadDir ? "file_path, or " : ""}content_base64 with filename) or external_url.`);
+        }
+        return render(res, `Document added to project ${project_id} (HTTP ${res.status})`);
       },
     );
   }

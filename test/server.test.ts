@@ -178,6 +178,46 @@ test("endpoints with an unknown permission are unavailable (fail closed)", async
   assert.ok(deps.catalogue.warnings.some((w) => /no known permission/.test(w)));
 });
 
+test("an endpoint that needs a second permission is unavailable without it", async () => {
+  const content = "/projects/{id}/documents/{document_id}/content";
+  const without = await connect({ projects: ["read"] });
+  const ep = without.deps.catalogue.find("GET", content)!;
+  assert.deepEqual(ep.extraPermissions, ["documents.download"]);
+  const before = seen.length;
+  const r = await without.client.callTool({ name: "freeitsm_api_get", arguments: { path: "/projects/4/documents/7/content" } });
+  assert.equal(r.isError, true);
+  assert.match(textOf(r), /documents\.download/);
+  assert.equal(seen.length, before, "a call FreeITSM would refuse is not sent");
+  const withIt = await connect({ projects: ["read"], documents: ["download"] });
+  assert.equal(withIt.deps.access.allows(withIt.deps.catalogue.find("GET", content)), true);
+});
+
+test("project documents: a link goes as JSON, a file as multipart", async () => {
+  const { client, names } = await connect({ projects: ["read", "update"] });
+  assert.ok(names.includes("freeitsm_add_project_document"));
+  assert.ok(names.includes("freeitsm_api_write"), "JSON is allowed on an endpoint that also takes files");
+  const add = (args: Record<string, unknown>) => client.callTool({ name: "freeitsm_add_project_document", arguments: { project_id: 4, ...args } });
+  await add({ external_url: "https://example.com/zz.pdf", title: "ZZ design" });
+  assert.deepEqual(seen.at(-1), {
+    method: "POST",
+    path: "/projects/4/documents",
+    search: "",
+    body: { external_url: "https://example.com/zz.pdf", title: "ZZ design" },
+  });
+  await add({ content_base64: Buffer.from("zz").toString("base64"), filename: "zz.txt" });
+  assert.equal(seen.at(-1)!.body, "<form>");
+  const before = seen.length;
+  assert.match(textOf(await add({ external_url: "https://example.com/a", content_base64: "eno=", filename: "a" })), /not both/);
+  assert.match(textOf(await add({})), /Give a file/);
+  assert.equal(seen.length, before);
+});
+
+test("upload-only endpoints are still refused by api_write", async () => {
+  const { client } = await connect({ change_attachments: ["create"], ticket_notes: ["create"] });
+  const r = await client.callTool({ name: "freeitsm_api_write", arguments: { method: "POST", path: "/changes/3/attachments", body: {} } });
+  assert.match(textOf(r), /multipart file upload/);
+});
+
 test("local-file uploads: off by default, confined to FREEITSM_UPLOAD_DIR when on", async () => {
   const { mkdtempSync, writeFileSync, mkdirSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");

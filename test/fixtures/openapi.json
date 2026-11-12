@@ -93,6 +93,10 @@
             "description": "Endpoints in the Cost centres area."
         },
         {
+            "name": "Chart of accounts",
+            "description": "Endpoints in the Chart of accounts area."
+        },
+        {
             "name": "Projects",
             "description": "Endpoints in the Projects area."
         },
@@ -393,6 +397,12 @@
                                                                     }
                                                                 },
                                                                 "cost_centres": {
+                                                                    "type": "array",
+                                                                    "items": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "accounts": {
                                                                     "type": "array",
                                                                     "items": {
                                                                         "type": "string"
@@ -1747,6 +1757,755 @@
                     },
                     "422": {
                         "description": "'text' is empty or missing.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/{id}/watchers": {
+            "get": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "List a ticket's watchers",
+                "operationId": "get_tickets_id_watchers",
+                "description": "The analysts watching the ticket, oldest first: who, who added them, and when. A watcher is told about the ticket as if it were theirs, through their own notification settings, for the events Tickets -> Settings -> General ticks. GH #277.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/TicketWatcher"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_watchers.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "Add a watcher",
+                "operationId": "post_tickets_id_watchers",
+                "description": "Puts an analyst on the ticket's watchers - the key's own analyst when analyst_id is left out. They must be active and able to see the ticket. 201 when added, 200 when they were already watching. GH #277.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "analyst_id": 7
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/TicketWatcher"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_watchers.create permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/{id}/watchers/{analyst_id}": {
+            "delete": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "Remove a watcher",
+                "operationId": "delete_tickets_id_watchers_analyst_id",
+                "description": "Takes an analyst off the ticket's watchers. 404 when they were not watching. GH #277.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    },
+                    {
+                        "name": "analyst_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The watcher's analyst id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/TicketWatcherRemoved"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_watchers.delete permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/{id}/forms": {
+            "get": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "List the forms a ticket needs",
+                "operationId": "get_tickets_id_forms",
+                "description": "Each form added to the ticket: whether it is required (block or warn at closure), who submitted it and when, whether a draft is in progress, and its revision. The answers are included only where the key's analyst may read them - access to Forms, or the \"Read the form answers on tickets you can see\" permission - exactly as in the app; otherwise the field is absent. Empty while forms on tickets are switched off (Tickets -> Settings -> Checklists). GH #272.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "description": "The response payload."
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_forms.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/{id}/forms/{ticket_form_id}/submissions": {
+            "post": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "Submit a ticket's form",
+                "operationId": "post_tickets_id_forms_ticket_form_id_submissions",
+                "description": "Submits the form for this ticket, linked to it in the same transaction, with the same validation as the Forms page. Send a client_reference: a retry with the same one returns the submission already made (200, \"replayed\": true) rather than a second. Send revision to make the submit conditional on nobody having saved the form since (409 otherwise). Submitting again replaces the earlier submission on the ticket, which is kept. The key's analyst needs Forms access. GH #272.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    },
+                    {
+                        "name": "ticket_form_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The form requirement's id, from GET /tickets/{id}/forms"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "data": {
+                                            "901": "Laptop",
+                                            "902": "2026-11-16"
+                                        },
+                                        "client_reference": "starter-1042"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "description": "The response payload."
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_forms.create permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/{id}/checklists": {
+            "get": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "List a ticket's checklists",
+                "operationId": "get_tickets_id_checklists",
+                "description": "Every checklist on the ticket with its steps, in order. closure is what closing does with mandatory steps still outstanding once the company setting has had its say: \"warn\" (allowed, and recorded) or \"block\" (refused). Each step: id, title, description, mandatory, suggested_role, asks_for (\"tick\", \"value\" - a tick with a text answer - or \"result\": pass / fail / na), value_prompt, completed, value, result, note (what went wrong, on a fail), completed_by, completed_at. The same shape as GET /tasks/{id}/checklists. GH #273.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Checklist"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_checklists.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tickets/{id}/checklists/steps/{step_id}": {
+            "patch": {
+                "tags": [
+                    "Ticket notes, conversation & history"
+                ],
+                "summary": "Answer a ticket checklist step",
+                "operationId": "patch_tickets_id_checklists_steps_step_id",
+                "description": "Answers one step, through the same rules as the app: a step that asks for a value needs one, a step that asks for a result is answered with \"result\" rather than ticked, and a fail needs a \"note\" saying what went wrong. A fail still counts as answered - it never stops the ticket closing, it is on the record instead. Send either \"completed\" (true to tick, false to untick - which clears the value and any result) or \"result\" - not both. Recorded as the key's analyst, with a note on the ticket for the change, and marked \"via the API\". Returns the step as it now stands. GH #273.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Ticket id"
+                    },
+                    {
+                        "name": "step_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The step's id, from GET /tickets/{id}/checklists"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "completed": true,
+                                        "value": "AT-4471"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ChecklistStep"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the ticket_checklists.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -11302,6 +12061,227 @@
                 }
             }
         },
+        "/tasks/{id}/checklists": {
+            "get": {
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "List a task's checklists",
+                "operationId": "get_tasks_id_checklists",
+                "description": "Every checklist on the task with its steps, in order - the same shape as GET /tickets/{id}/checklists. closure is what completing the task does with mandatory steps outstanding: \"warn\" or \"block\". Each step: id, title, description, mandatory, suggested_role, asks_for (\"tick\", \"value\" - a tick with a text answer - or \"result\": pass / fail / na), value_prompt, completed, value, result, note (what went wrong, on a fail), completed_by, completed_at. Empty while checklists on tasks are switched off (Tasks -> Settings -> Checklists). GH #273.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Task id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Checklist"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the task_checklists.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/tasks/{id}/checklists/steps/{step_id}": {
+            "patch": {
+                "tags": [
+                    "Tasks"
+                ],
+                "summary": "Answer a task checklist step",
+                "operationId": "patch_tasks_id_checklists_steps_step_id",
+                "description": "Answers one step, through the same rules as the app: a step that asks for a value needs one, a step that asks for a result is answered with \"result\" rather than ticked, and a fail needs a \"note\" saying what went wrong. A fail still counts as answered - it never stops the task closing, it is on the record instead. Send either \"completed\" (true to tick, false to untick - which clears the value and any result) or \"result\" - not both. Recorded as the key's analyst, on the step's history, and marked \"via the API\". Returns the step as it now stands. GH #273. Refused while checklists on tasks are switched off, and - where Tasks -> Settings -> Evidence says so - on a completed task.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Task id"
+                    },
+                    {
+                        "name": "step_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The step's id, from GET /tasks/{id}/checklists"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "result": "pass"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ChecklistStep"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the task_checklists.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/cmdb/classes": {
             "get": {
                 "tags": [
@@ -17926,6 +18906,667 @@
                 }
             }
         },
+        "/accounts": {
+            "get": {
+                "tags": [
+                    "Chart of accounts"
+                ],
+                "summary": "List / search accounts",
+                "operationId": "get_accounts",
+                "description": "The chart of accounts of the key's companies, ordered by code. A code is text and is returned exactly as stored - \"0010\" stays \"0010\". Each account has a kind: expense, fixed_asset, payroll or income. Inactive ones are included; filter with active=true for the ones that may be used for new entries.",
+                "parameters": [
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Narrow to one company inside the key's scope"
+                    },
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Exact code, ignoring capitals"
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Search code, name and description"
+                    },
+                    {
+                        "name": "kind",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "expense, fixed_asset, payroll or income"
+                    },
+                    {
+                        "name": "active",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "true / false"
+                    },
+                    {
+                        "name": "parent_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Children of this account; 0 = top level only"
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "code (default), name, updated_at, id - prefix \"-\" for descending"
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Pagination (default 1 / 25, max per_page 100)"
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Pagination (default 1 / 25, max per_page 100)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Account"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the accounts.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Chart of accounts"
+                ],
+                "summary": "Add an account",
+                "operationId": "post_accounts",
+                "description": "code, name and kind are required. The code is trimmed and otherwise kept exactly as sent. A code already used in that company (ignoring capitals) is refused with 409. The parent can be given by parent_id or parent_code and must be in the same company.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "code": "2.0.3.0.4",
+                                        "name": "Software Licences",
+                                        "kind": "expense",
+                                        "parent_code": "2.0",
+                                        "is_active": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Account"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the accounts.create permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/accounts/sync": {
+            "post": {
+                "tags": [
+                    "Chart of accounts"
+                ],
+                "summary": "Sync a chart from a finance system",
+                "operationId": "post_accounts_sync",
+                "description": "Bring one company's chart of accounts into line with a list, matched on code (ignoring capitals): new codes are added, existing ones updated, and nothing is duplicated, so the same call can be made every night. Only the fields sent are changed. A new account sent without a kind takes its parent's. Needs accounts.create as well, for the new ones.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "company_id": 1,
+                                        "deactivate_missing": false,
+                                        "accounts": [
+                                            {
+                                                "code": "2.0",
+                                                "name": "Operating expenses",
+                                                "kind": "expense"
+                                            },
+                                            {
+                                                "code": "2.0.3.0.4",
+                                                "name": "Software Licences",
+                                                "parent_code": "2.0"
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AccountSyncResult"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the accounts.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/accounts/{id}": {
+            "get": {
+                "tags": [
+                    "Chart of accounts"
+                ],
+                "summary": "Get an account",
+                "operationId": "get_accounts_id",
+                "description": "One account, with its parent and how many accounts sit below it. 404 when it does not exist or belongs to a company outside the key's scope.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Account id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Account"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the accounts.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Chart of accounts"
+                ],
+                "summary": "Update an account",
+                "operationId": "patch_accounts_id",
+                "description": "Only the fields sent are changed. Setting is_active to false retires it: it stays on everything already counted in it but is not offered for anything new. An account cannot move to another company, and cannot be put under itself or anything below it.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Account id"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "is_active": false
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Account"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the accounts.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chart of accounts"
+                ],
+                "summary": "Delete an account",
+                "operationId": "delete_accounts_id",
+                "description": "Permanently deletes an account that has nothing below it and is not used anywhere - on a budget line, a task, an income line or as a project's default. For one that has simply stopped being used, set is_active to false instead.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Account id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DeleteAck"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the accounts.delete permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/projects": {
             "get": {
                 "tags": [
@@ -20022,6 +21663,128 @@
                         }
                     }
                 }
+            },
+            "patch": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Set a project's default accounts",
+                "operationId": "patch_projects_id_budget",
+                "description": "The project's own account for time (labour_account_id) and for other spending (other_account_id) - where time with no task account, and a budget line with no account, are counted. null = use the defaults for every project (Projects - Settings - Budget). Only cost accounts of the project's company.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "labour_account_id": 12,
+                                        "other_account_id": null
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectBudget"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/projects/{id}/budget-lines": {
@@ -20627,6 +22390,1235 @@
                     },
                     "403": {
                         "description": "The key does not have the projects.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/by-account": {
+            "get": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Costs and income by account, across projects",
+                "operationId": "get_projects_by_account",
+                "description": "Costs and income by chart-of-accounts account across every project the key may see - one breakdown per currency, never added across currencies, with accounts in different companies matched on code. Each breakdown has sections (expense, fixed_asset, payroll, income) of rows {account, planned, actual, forecast, minutes}, unassigned, costs, income, net = income less costs, and projects - how many projects are in it. The costs use the same rules as each project's budget.",
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Comma-separated project statuses to include"
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "One company inside the key's scope"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ProjectAccountBreakdown"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/tasks/{task_id}/accounts": {
+            "get": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Get a task's accounts",
+                "operationId": "get_projects_id_tasks_task_id_accounts",
+                "description": "Where the time logged on a project task counts: accounts with percentages, whether they are the task's own or its parent's (a subtask follows its parent unless it has its own), and the dated history of changes.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Task id (a task of the project, or one of its subtasks)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectTaskAccounts"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Set a task's accounts",
+                "operationId": "patch_projects_id_tasks_task_id_accounts",
+                "description": "One account, or several with percentages adding up to 100 (amounts are not allowed on tasks). [] = no accounts of its own: a subtask follows its parent again, a task counts in the project's account for time. Each change is a dated version; Projects - Settings - Budget decides whether all the task's time moves or only time logged from then on. Saving the same split again changes nothing.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "task_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Task id"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "accounts": [
+                                            {
+                                                "account_id": 7,
+                                                "percent": 70
+                                            },
+                                            {
+                                                "account_id": 3,
+                                                "percent": 30
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectTaskAccounts"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/income-lines": {
+            "post": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Add an income line",
+                "operationId": "post_projects_id_income_lines",
+                "description": "Money the project brings in - a recharge, grant funding. Never added to the budget's planned or actual: GET /projects/{id}/budget returns it as income, with income less costs. Only an active income account of the project's company.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "title": "Recharge to Sales",
+                                        "planned": 8000,
+                                        "received": 4000,
+                                        "received_date": "2026-10-30",
+                                        "account_id": 11
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectIncomeLine"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/income-lines/{line_id}": {
+            "patch": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Update an income line",
+                "operationId": "patch_projects_id_income_lines_line_id",
+                "description": "Only the fields sent are changed.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "line_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Income line id"
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "received": 8000,
+                                        "received_date": "2026-11-12"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectIncomeLine"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Delete an income line",
+                "operationId": "delete_projects_id_income_lines_line_id",
+                "description": "Removes the income line; recorded in the project's history.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "line_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Income line id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DeleteAck"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/documents": {
+            "get": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "List a project's documents",
+                "operationId": "get_projects_id_documents",
+                "description": "The project's documents, newest first - metadata only (never the contents): kind (file or link), title, description, original name, MIME type, size, sha256, external URL, client_reference, who uploaded it and when, and content_url. Only documents the key's analyst can see. Add ?client_reference= to ask whether an upload arrived without sending it again.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "client_reference",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Only the document uploaded with this reference by the key's analyst"
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Pagination (default 1 / 25, max per_page 100)"
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Pagination (default 1 / 25, max per_page 100)"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ProjectDocument"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Add a document to a project",
+                "operationId": "post_projects_id_documents",
+                "description": "Send multipart/form-data with a file part named file (and optional title, description, client_reference), or JSON with external_url (and optional title, description, client_reference) for a link. The same checks as the Documents panel: access first, before anything is written; the install's allowed file types and size limit; links must be http or https. Returns 201 with the document; 200 for a retry with the same client_reference and the same content; 409 if that reference already names something else. For uploads use a multipart client rather than the JSON request editor.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "external_url": "https://sharepoint.example.com/sites/it/network-design.pdf",
+                                        "title": "Network design",
+                                        "client_reference": "pmtool:doc:4411"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectDocument"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/documents/{document_id}/link": {
+            "post": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Attach an existing document",
+                "operationId": "post_projects_id_documents_document_id_link",
+                "description": "Attach a document that is already in FreeITSM - on another project, a contract, an asset - to this project too. The key's analyst must already be able to see it. Attaching twice is harmless (200).",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Document id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ProjectDocument"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/documents/{document_id}/content": {
+            "get": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Download a project document",
+                "operationId": "get_projects_id_documents_document_id_content",
+                "description": "The file itself, as an attachment - or, for a link, {kind: \"link\", external_url} (never a redirect). Needs documents.download as well as projects.read: no key has it unless an administrator ticks it. Only a document on THIS project. Every download is logged with the key, the address and the bytes, and counted against the key's download limits (System - API - Threat protection): past the alert level administrators are told; at the limit the download is refused (429), or the key is switched off.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Document id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "description": "The response payload."
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/documents/{document_id}": {
+            "delete": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Take a document off a project",
+                "operationId": "delete_projects_id_documents_document_id",
+                "description": "Removes the link between the document and the project, not the document - unless that was its last link, when it is deleted as in the app (document_deleted: true).",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    },
+                    {
+                        "name": "document_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Document id"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "description": "The response payload."
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -32003,6 +34995,73 @@
                     }
                 }
             },
+            "ProjectDocument": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "file",
+                            "link"
+                        ]
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "original_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "mime_type": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "size_bytes": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "sha256": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "external_url": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "client_reference": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "uploaded_by": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "name": {
+                                "type": "string",
+                                "nullable": true
+                            }
+                        }
+                    },
+                    "uploaded_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "content_url": {
+                        "type": "string"
+                    }
+                }
+            },
             "ChangeEvidenceAttachment": {
                 "type": "object",
                 "properties": {
@@ -41559,6 +44618,158 @@
                     }
                 ]
             },
+            "Checklist": {
+                "type": "object",
+                "description": "A checklist on a ticket or a task - the same shape on both (GH #273).",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "template_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "template_version": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "closure": {
+                        "type": "string",
+                        "enum": [
+                            "warn",
+                            "block"
+                        ],
+                        "description": "What closing / completing does with mandatory steps outstanding."
+                    },
+                    "steps_done": {
+                        "type": "integer"
+                    },
+                    "steps_total": {
+                        "type": "integer"
+                    },
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ChecklistStep"
+                        }
+                    }
+                }
+            },
+            "ChecklistStep": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "mandatory": {
+                        "type": "boolean"
+                    },
+                    "suggested_role": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "asks_for": {
+                        "type": "string",
+                        "enum": [
+                            "tick",
+                            "value",
+                            "result"
+                        ]
+                    },
+                    "value_prompt": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "completed": {
+                        "type": "boolean"
+                    },
+                    "value": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "result": {
+                        "type": "string",
+                        "enum": [
+                            "pass",
+                            "fail",
+                            "na"
+                        ],
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "What went wrong, on a fail."
+                    },
+                    "completed_by": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "completed_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                }
+            },
+            "TicketWatcher": {
+                "type": "object",
+                "description": "An analyst watching a ticket (GH #277).",
+                "properties": {
+                    "analyst": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "added_by": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        },
+                        "nullable": true
+                    },
+                    "added_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                }
+            },
+            "TicketWatcherRemoved": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {
+                        "type": "integer"
+                    },
+                    "analyst_id": {
+                        "type": "integer"
+                    },
+                    "removed": {
+                        "type": "boolean"
+                    }
+                }
+            },
             "TicketNote": {
                 "type": "object",
                 "properties": {
@@ -41943,6 +45154,32 @@
                         "type": "string",
                         "nullable": true,
                         "description": "Reference-data source to populate this arg from (e.g. \"statuses\"), if applicable."
+                    },
+                    "new_default": {
+                        "nullable": true,
+                        "type": "string",
+                        "description": "The value a NEWLY added action starts with, when it differs from default (a saved action missing the arg keeps meaning what it always meant). Send it when you create an action: the engine does not fill in a missing arg."
+                    },
+                    "options": {
+                        "nullable": true,
+                        "type": "array",
+                        "description": "For type select: the fixed choices. Send the value.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "value": {
+                                    "type": "string"
+                                },
+                                "label": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "show_when": {
+                        "nullable": true,
+                        "type": "object",
+                        "description": "Only relevant when another arg of this action has one of the listed values, e.g. {\"preset\": [\"custom\"]}."
                     }
                 }
             },
@@ -43075,6 +46312,41 @@
                         "type": "number",
                         "nullable": true,
                         "description": "3.3.0. The forecast somebody typed, or null."
+                    },
+                    "accounts": {
+                        "type": "array",
+                        "description": "#282. The chart-of-accounts account(s) the line counts in, with the share of each (percent, adding up to 100). Empty = the project's account for other spending. Send it on POST/PATCH as [{account_id}] for one account, [{account_id, percent}] for a split, or [{account_id, amount}] with account_split \"amount\" (amounts must add up to the line's planned, else actual, else forecast). Leave it out to keep the line's accounts; [] removes them.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "code": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                        "expense",
+                                        "fixed_asset",
+                                        "payroll",
+                                        "income"
+                                    ]
+                                },
+                                "percent": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "account_split": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "#282. How a split was entered: percent or amount. The shares are always stored as percentages."
                     }
                 }
             },
@@ -43143,6 +46415,135 @@
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/ProjectBudgetLine"
+                        }
+                    },
+                    "by_account": {
+                        "$ref": "#/components/schemas/ProjectAccountBreakdown"
+                    },
+                    "income": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "#282. Income: totals and lines (null before Database Verification).",
+                        "properties": {
+                            "planned": {
+                                "type": "number"
+                            },
+                            "received": {
+                                "type": "number"
+                            },
+                            "lines": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/ProjectIncomeLine"
+                                }
+                            }
+                        }
+                    },
+                    "labour_by_account": {
+                        "type": "array",
+                        "nullable": true,
+                        "description": "#282. Where the logged time counts, account by account (null before Database Verification). account null = not assigned to an account. is_default = counted in the project's account for time because the task names none. cost null in hours mode.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "account": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "type": "string",
+                                            "enum": [
+                                                "expense",
+                                                "fixed_asset",
+                                                "payroll",
+                                                "income"
+                                            ]
+                                        }
+                                    },
+                                    "nullable": true
+                                },
+                                "minutes": {
+                                    "type": "integer"
+                                },
+                                "cost": {
+                                    "type": "number",
+                                    "nullable": true
+                                },
+                                "is_default": {
+                                    "type": "boolean"
+                                }
+                            }
+                        }
+                    },
+                    "default_accounts": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "#282. Where the project's time (labour) and its lines with no account (other) count. Each null when there is none. Change them with PATCH /projects/{id}/budget.",
+                        "properties": {
+                            "labour": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "integer"
+                                    },
+                                    "code": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "expense",
+                                            "fixed_asset",
+                                            "payroll",
+                                            "income"
+                                        ]
+                                    },
+                                    "source": {
+                                        "type": "string",
+                                        "description": "project (its own) or install (Projects - Settings - Budget, by code)"
+                                    }
+                                },
+                                "nullable": true
+                            },
+                            "other": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "integer"
+                                    },
+                                    "code": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": [
+                                            "expense",
+                                            "fixed_asset",
+                                            "payroll",
+                                            "income"
+                                        ]
+                                    },
+                                    "source": {
+                                        "type": "string",
+                                        "description": "project (its own) or install (Projects - Settings - Budget, by code)"
+                                    }
+                                },
+                                "nullable": true
+                            }
                         }
                     }
                 }
@@ -43382,6 +46783,634 @@
                                         ]
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            },
+            "Account": {
+                "type": "object",
+                "description": "A account (GH #160). Always one company's. The code is text, returned exactly as stored - \"0010\" stays \"0010\".",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "Unique per company, ignoring capitals."
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "expense",
+                            "fixed_asset",
+                            "payroll",
+                            "income"
+                        ],
+                        "description": "Which section of a project's By-account breakdown the account is counted in."
+                    },
+                    "description": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "parent": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "null = top level.",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "description": "false = not offered for new assignments; kept on anything already charged to it."
+                    },
+                    "company": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "child_count": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                }
+            },
+            "AccountSyncResult": {
+                "type": "object",
+                "description": "What a sync did (or, with dry_run, would do).",
+                "properties": {
+                    "company_id": {
+                        "type": "integer"
+                    },
+                    "applied": {
+                        "type": "boolean"
+                    },
+                    "dry_run": {
+                        "type": "boolean"
+                    },
+                    "counts": {
+                        "type": "object",
+                        "properties": {
+                            "create": {
+                                "type": "integer"
+                            },
+                            "update": {
+                                "type": "integer"
+                            },
+                            "unchanged": {
+                                "type": "integer"
+                            },
+                            "deactivate": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "changes": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "line": {
+                                    "type": "integer",
+                                    "nullable": true,
+                                    "description": "1-based position in accounts; null for one made inactive because it was missing from the list."
+                                },
+                                "code": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "action": {
+                                    "type": "string",
+                                    "enum": [
+                                        "create",
+                                        "update",
+                                        "deactivate"
+                                    ]
+                                },
+                                "changes": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string",
+                                        "enum": [
+                                            "code",
+                                            "name",
+                                            "description",
+                                            "is_active",
+                                            "parent"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "ProjectTaskAccounts": {
+                "type": "object",
+                "description": "#282. Where a project task's logged time counts. accounts null = none of its own (a subtask then follows parent_accounts; a task, the project's account for time). Set with PATCH {accounts: [] | [{account_id}] | [{account_id, percent}, ...] adding up to 100}; percentages only. Each change is a version from that day (history); Projects - Settings - Budget decides whether all of a task's time follows the latest version or each hour the version in force when it was logged.",
+                "properties": {
+                    "task_id": {
+                        "type": "integer"
+                    },
+                    "accounts": {
+                        "type": "array",
+                        "nullable": true,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "code": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                        "expense",
+                                        "fixed_asset",
+                                        "payroll",
+                                        "income"
+                                    ]
+                                },
+                                "percent": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "parent_accounts": {
+                        "type": "array",
+                        "nullable": true,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "code": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                        "expense",
+                                        "fixed_asset",
+                                        "payroll",
+                                        "income"
+                                    ]
+                                },
+                                "percent": {
+                                    "type": "number"
+                                }
+                            }
+                        }
+                    },
+                    "history": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "from": {
+                                    "type": "string",
+                                    "format": "date"
+                                },
+                                "accounts": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "integer"
+                                            },
+                                            "code": {
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "kind": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "expense",
+                                                    "fixed_asset",
+                                                    "payroll",
+                                                    "income"
+                                                ]
+                                            },
+                                            "percent": {
+                                                "type": "number"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "ProjectIncomeLine": {
+                "type": "object",
+                "description": "#282. Money a project brings in, in its currency. Never part of the budget's planned / actual. On POST/PATCH send title (required), planned, received, planned_date, received_date (not in the future), account_id (an active income account of the project's company), notes.",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "planned": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "received": {
+                        "type": "number",
+                        "nullable": true
+                    },
+                    "planned_date": {
+                        "type": "string",
+                        "format": "date",
+                        "nullable": true
+                    },
+                    "received_date": {
+                        "type": "string",
+                        "format": "date",
+                        "nullable": true
+                    },
+                    "notes": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "account": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "code": {
+                                "type": "string"
+                            },
+                            "name": {
+                                "type": "string"
+                            },
+                            "kind": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "ProjectAccountBreakdown": {
+                "type": "object",
+                "description": "#282. Costs and income by chart-of-accounts account, in one currency. The costs equal the budget's planned / actual / forecast (the same rules, including \"nothing counted twice\" for labour); a line or time with no account counts in the project's default account, or in unassigned. Income is never netted into costs; net = income less costs.",
+                "properties": {
+                    "currency": {
+                        "type": "string"
+                    },
+                    "projects": {
+                        "type": "integer",
+                        "description": "GET /projects/by-account only: how many projects are in this currency's figures."
+                    },
+                    "sections": {
+                        "type": "object",
+                        "properties": {
+                            "expense": {
+                                "type": "object",
+                                "properties": {
+                                    "rows": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "account": {
+                                                    "type": "object",
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "code": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "planned": {
+                                                    "type": "number"
+                                                },
+                                                "actual": {
+                                                    "type": "number"
+                                                },
+                                                "forecast": {
+                                                    "type": "number"
+                                                },
+                                                "minutes": {
+                                                    "type": "integer",
+                                                    "description": "Time logged in this account (labour has no money in hours mode)."
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "planned": {
+                                        "type": "number"
+                                    },
+                                    "actual": {
+                                        "type": "number"
+                                    },
+                                    "forecast": {
+                                        "type": "number"
+                                    },
+                                    "minutes": {
+                                        "type": "integer"
+                                    }
+                                }
+                            },
+                            "fixed_asset": {
+                                "type": "object",
+                                "properties": {
+                                    "rows": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "account": {
+                                                    "type": "object",
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "code": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "planned": {
+                                                    "type": "number"
+                                                },
+                                                "actual": {
+                                                    "type": "number"
+                                                },
+                                                "forecast": {
+                                                    "type": "number"
+                                                },
+                                                "minutes": {
+                                                    "type": "integer",
+                                                    "description": "Time logged in this account (labour has no money in hours mode)."
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "planned": {
+                                        "type": "number"
+                                    },
+                                    "actual": {
+                                        "type": "number"
+                                    },
+                                    "forecast": {
+                                        "type": "number"
+                                    },
+                                    "minutes": {
+                                        "type": "integer"
+                                    }
+                                }
+                            },
+                            "payroll": {
+                                "type": "object",
+                                "properties": {
+                                    "rows": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "account": {
+                                                    "type": "object",
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "code": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "planned": {
+                                                    "type": "number"
+                                                },
+                                                "actual": {
+                                                    "type": "number"
+                                                },
+                                                "forecast": {
+                                                    "type": "number"
+                                                },
+                                                "minutes": {
+                                                    "type": "integer",
+                                                    "description": "Time logged in this account (labour has no money in hours mode)."
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "planned": {
+                                        "type": "number"
+                                    },
+                                    "actual": {
+                                        "type": "number"
+                                    },
+                                    "forecast": {
+                                        "type": "number"
+                                    },
+                                    "minutes": {
+                                        "type": "integer"
+                                    }
+                                }
+                            },
+                            "income": {
+                                "type": "object",
+                                "properties": {
+                                    "rows": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "account": {
+                                                    "type": "object",
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "code": {
+                                                            "type": "string"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        },
+                                                        "kind": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                },
+                                                "planned": {
+                                                    "type": "number"
+                                                },
+                                                "actual": {
+                                                    "type": "number"
+                                                },
+                                                "forecast": {
+                                                    "type": "number"
+                                                },
+                                                "minutes": {
+                                                    "type": "integer",
+                                                    "description": "Time logged in this account (labour has no money in hours mode)."
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "planned": {
+                                        "type": "number"
+                                    },
+                                    "actual": {
+                                        "type": "number"
+                                    },
+                                    "forecast": {
+                                        "type": "number"
+                                    },
+                                    "minutes": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "unassigned": {
+                        "type": "object",
+                        "properties": {
+                            "account": {
+                                "type": "object",
+                                "nullable": true,
+                                "properties": {
+                                    "id": {
+                                        "type": "integer"
+                                    },
+                                    "code": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "kind": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "planned": {
+                                "type": "number"
+                            },
+                            "actual": {
+                                "type": "number"
+                            },
+                            "forecast": {
+                                "type": "number"
+                            },
+                            "minutes": {
+                                "type": "integer",
+                                "description": "Time logged in this account (labour has no money in hours mode)."
+                            }
+                        },
+                        "nullable": true
+                    },
+                    "costs": {
+                        "type": "object",
+                        "properties": {
+                            "planned": {
+                                "type": "number"
+                            },
+                            "actual": {
+                                "type": "number"
+                            },
+                            "forecast": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "income": {
+                        "type": "object",
+                        "properties": {
+                            "planned": {
+                                "type": "number"
+                            },
+                            "actual": {
+                                "type": "number"
+                            },
+                            "forecast": {
+                                "type": "number"
+                            }
+                        }
+                    },
+                    "net": {
+                        "type": "object",
+                        "properties": {
+                            "planned": {
+                                "type": "number"
+                            },
+                            "actual": {
+                                "type": "number"
+                            },
+                            "forecast": {
+                                "type": "number"
                             }
                         }
                     }

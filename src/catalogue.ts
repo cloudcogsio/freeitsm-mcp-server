@@ -34,10 +34,15 @@ export interface Endpoint {
   section: string;
   /** "tickets.read"; null = any valid key; undefined = could not be determined */
   permission: string | null | undefined;
+  /** further permissions the endpoint checks itself ("Needs documents.download as well as ...") */
+  extraPermissions: string[];
   params: Param[];
   bodyFields: BodyField[];
   bodyExamples: { summary?: string; value: unknown }[];
+  /** accepts a multipart/form-data file upload */
   multipart: boolean;
+  /** accepts a JSON body (false only for upload-only endpoints) */
+  json: boolean;
   matcher: RegExp;
 }
 
@@ -122,6 +127,11 @@ export class Catalogue {
           Object.values(c.examples ?? {}).map((e) => ({ summary: e.summary, value: e.value })),
         );
         const multipart = "multipart/form-data" in content || /multipart\/form-data/i.test(op.description ?? "");
+        // A described upload whose OpenAPI body is JSON takes either (e.g. a file or a link).
+        const json = !multipart || "application/json" in content;
+        const extraPermissions = [...(op.description ?? "").matchAll(/\bNeeds ([a-z0-9_]+\.[a-z0-9_]+) as well as\b/gi)]
+          .map((m) => m[1].toLowerCase())
+          .filter((p) => p !== permission);
 
         endpoints.push({
           method,
@@ -130,6 +140,7 @@ export class Catalogue {
           description: op.description ?? "",
           section: op.tags?.[0] ?? "Other",
           permission,
+          extraPermissions,
           params: (op.parameters ?? [])
             .filter((p) => p.in === "path" || p.in === "query")
             .map((p) => ({
@@ -143,6 +154,7 @@ export class Catalogue {
             .map((p) => ({ name: p.name, required: !!p.req, description: p.desc ?? "" })),
           bodyExamples,
           multipart,
+          json,
           matcher: templateToRegex(path),
         });
       }
@@ -267,8 +279,10 @@ export class Access {
     if (endpoint.permission === undefined) {
       return { ok: false, reason: "the permission it needs could not be determined from this FreeITSM version" };
     }
-    if (!this.hasPermission(endpoint.permission)) {
-      return { ok: false, reason: `the API key lacks the ${endpoint.permission} permission` };
+    // Refused calls count against the key on FreeITSM's side, so check every permission it names.
+    const missing = [endpoint.permission, ...endpoint.extraPermissions].filter((p) => !this.hasPermission(p));
+    if (missing.length) {
+      return { ok: false, reason: `the API key lacks the ${missing.join(" and ")} permission${missing.length > 1 ? "s" : ""}` };
     }
     return { ok: true };
   }

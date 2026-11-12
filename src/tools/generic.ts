@@ -9,6 +9,7 @@ import { call, type Deps } from "../context.js";
 import { CHARACTER_LIMIT, render, text } from "../format.js";
 
 const queryValue = z.union([z.string(), z.number(), z.boolean()]);
+const UPLOAD_HINT = "for files use freeitsm_upload_change_evidence or freeitsm_add_project_document where listed";
 
 function line(ep: Endpoint, reason?: string): string {
   return `${ep.method.padEnd(6)} ${ep.path} - ${ep.summary}${reason ? `  [unavailable: ${reason}]` : ""}`;
@@ -131,10 +132,18 @@ Accepts a template (/tickets/{id}/notes) or a concrete path (/tickets/42/notes).
         ep.description,
         "",
         `Section: ${ep.section}`,
-        `Permission: ${ep.permission === undefined ? "unknown (treated as unavailable)" : ep.permission ?? "none (any valid key)"}`,
+        `Permission: ${ep.permission === undefined ? "unknown (treated as unavailable)" : ep.permission ?? "none (any valid key)"}${
+          ep.extraPermissions.length ? `, plus ${ep.extraPermissions.join(", ")}` : ""
+        }`,
         `Usable with this key: ${a.ok ? "yes" : `no - ${a.reason}`}`,
       ];
-      if (ep.multipart) parts.push("Body: multipart/form-data upload (use freeitsm_upload_change_evidence where available).");
+      if (ep.multipart) {
+        parts.push(
+          ep.json
+            ? `Body: JSON, or a multipart/form-data file upload (${UPLOAD_HINT}).`
+            : `Body: multipart/form-data upload only (${UPLOAD_HINT}).`,
+        );
+      }
       const pathParams = ep.params.filter((p) => p.in === "path");
       const queryParams = ep.params.filter((p) => p.in === "query");
       if (pathParams.length) parts.push("", "Path parameters:", ...pathParams.map((p) => `- ${p.name}: ${p.description}`));
@@ -178,7 +187,7 @@ Examples:
     },
   );
 
-  const anyWrite = endpoints.some((e) => WRITE_METHODS.has(e.method) && !e.multipart && access.check(e).ok);
+  const anyWrite = endpoints.some((e) => WRITE_METHODS.has(e.method) && e.json && access.check(e).ok);
   if (!anyWrite) return;
 
   server.registerTool(
@@ -203,8 +212,8 @@ Examples:
     async ({ method, path, body, query }, ctx) => {
       if (path.includes("{")) return text(`Fill in the placeholders in ${path} with real ids first.`);
       const ep = catalogue.find(method, path);
-      if (ep?.multipart) {
-        return text(`${method} ${ep.path} needs a multipart file upload, which this tool cannot send. Use freeitsm_upload_change_evidence if it is listed.`);
+      if (ep && !ep.json) {
+        return text(`${method} ${ep.path} needs a multipart file upload, which this tool cannot send (${UPLOAD_HINT}).`);
       }
       const res = await call(deps, method, path, { body: body ?? (method === "DELETE" ? undefined : {}), query, signal: ctx.mcpReq.signal });
       return render(res, `${method} ${normalisePath(path)} (HTTP ${res.status})`);
