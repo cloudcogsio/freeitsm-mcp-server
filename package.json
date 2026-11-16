@@ -37,7 +37,8 @@
     "test": "npm run build && tsx --test test/unit.test.ts test/server.test.ts",
     "smoke": "tsx scripts/smoke.ts",
     "fixtures": "tsx scripts/fixtures.ts",
-    "docker:build": "tsx scripts/docker-build.ts"
+    "docker:build": "tsx scripts/docker-build.ts",
+    "image:update": "tsx scripts/image-update.ts"
   },
   "engines": {
     "node": ">=20.12"

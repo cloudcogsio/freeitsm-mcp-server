@@ -71,6 +71,26 @@ The image is built from pinned base images. It runs on a distroless Node runtime
 package manager) as a non-root user, and holds only production dependencies. The server's files
 are owned by root, so the process cannot modify its own code.
 
+### Published image
+
+Every change to `main` is tested, scanned and published to the GitHub Container Registry, for
+amd64 and arm64, with an SBOM and a signed build provenance attestation. Releases also get version
+tags (`0.4.0`, `0.4`).
+
+```bash
+docker pull ghcr.io/cloudcogsio/freeitsm-mcp-server:latest
+# check it was built by this repository's workflow (GitHub CLI):
+gh attestation verify oci://ghcr.io/cloudcogsio/freeitsm-mcp-server:latest -R cloudcogsio/freeitsm-mcp-server
+```
+
+For production, refer to the image by digest (`ghcr.io/cloudcogsio/freeitsm-mcp-server@sha256:...`)
+in the client entry below, so it changes only when you change it. From a checkout of this
+repository, `npm run image:update` does the same for a local tag: it verifies the attestation of
+the current published image, pulls exactly that digest and tags it `freeitsm-mcp-server:latest`
+(`-- --check` only reports whether there is an update; `-- --tag 0.4.0` picks a release).
+
+### Building it yourself
+
 ```bash
 docker build -t freeitsm-mcp-server .
 ```
@@ -79,18 +99,22 @@ The base images are pinned by digest, so a plain `docker build` gives the same i
 and never picks up the bases' security updates. To build with current bases, run:
 
 ```bash
-npm run docker:build              # update the pinned digests, audit, build :<version> and :latest, scan
-npm run docker:build -- --check   # only report base images that have updates
+npm run docker:build              # update the pinned digests, audit, build :local, scan
+npm run docker:build -- --check   # only report base images (and the scanner) that have updates
 ```
 
 It moves each pinned digest to the one its tag points to now, runs `npm audit` on the production
-dependencies, builds, and scans the image with [grype](https://github.com/anchore/grype). Grype runs
-from its own pinned image and reads a saved copy of the image, so it needs no account and no access
-to the Docker socket. A failed scan exits with code 2. The scan also catches a base tag that is no
-longer maintained, which a digest update cannot: then move the `FROM` tag (for example to a newer
-Debian release). In this repository, Dependabot proposes the same digest updates (and npm and GitHub
-Actions updates) as weekly pull requests, and CI rebuilds and scans the image on every change and
-once a week.
+dependencies, builds `freeitsm-mcp-server:local`, and scans it with
+[grype](https://github.com/anchore/grype). Grype runs from its own pinned image and reads a saved
+copy of the image, so it needs no account and no access to the Docker socket. A failed scan exits
+with code 2. The scan also catches a base tag that is no longer maintained, which a digest update
+cannot: then move the `FROM` tag (for example to a newer Debian release).
+
+In this repository, Dependabot proposes the same digest updates (and npm and GitHub Actions
+updates) as weekly pull requests, and CI tests, rebuilds and scans the image on every change and
+once a week. `main` only accepts changes whose checks pass.
+
+### Running it
 
 The server speaks MCP over stdio, so the client starts the container itself and keeps stdin
 open (`-i`). Recommended entry, locked down:
@@ -105,7 +129,7 @@ open (`-i`). Recommended entry, locked down:
         "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
         "--memory=256m", "--pids-limit=64",
         "-e", "FREEITSM_URL", "-e", "FREEITSM_API_KEY", "-e", "FREEITSM_READ_ONLY",
-        "freeitsm-mcp-server"
+        "ghcr.io/cloudcogsio/freeitsm-mcp-server:latest"
       ],
       "env": {
         "FREEITSM_URL": "https://itsm.example.com",

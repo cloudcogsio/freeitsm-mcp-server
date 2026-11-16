@@ -5,11 +5,15 @@
  * picks up the security updates published for those bases. This script:
  *   1. looks up the digest each pinned tag points to now and updates the Dockerfile,
  *   2. checks the production dependencies with `npm audit`,
- *   3. builds freeitsm-mcp-server:<version> and :latest,
- *   4. scans the image with grype (as CI does), run from its own pinned image.
+ *   3. builds freeitsm-mcp-server:local and :<version>-local,
+ *   4. scans the image with grype (as CI does), run from its own pinned image,
+ *      and reports when a newer grype release exists.
+ *
+ * Local builds are for testing. The MCP clients run :latest, which only
+ * `npm run image:update` sets: the published image, once its attestation checks out.
  *
  * Run: npm run docker:build             (update the bases, then build)
- *      npm run docker:build -- --check  (only report stale bases; exits 1 if any)
+ *      npm run docker:build -- --check  (only report; exits 1 if a base or the scanner has an update)
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmdirSync, rmSync, writeFileSync } from "node:fs";
@@ -50,10 +54,32 @@ const updated = source.replace(FROM, (line, from: string, ref: string, digest: s
 const unique = [...new Set(stale)];
 console.error(unique.length ? `base images with updates:\n  ${unique.join("\n  ")}` : "base images are current");
 
-if (checkOnly) process.exit(unique.length ? 1 : 0);
+// The scanner is pinned too, and Dependabot does not look inside this script.
+const scannerUpdate = await newerGrype();
+if (scannerUpdate) console.error(`scanner update: ${scannerUpdate}`);
+
+if (checkOnly) process.exit(unique.length || scannerUpdate ? 1 : 0);
 if (unique.length) {
   writeFileSync(DOCKERFILE, updated);
   console.error("Dockerfile updated (commit it with the release)");
+}
+
+/** "grype v0.121.3 -> v0.122.0; set GRYPE_IMAGE ..." or null when the pin is current. */
+async function newerGrype(): Promise<string | null> {
+  const pinned = /:(v[\d.]+)@/.exec(GRYPE_IMAGE)![1];
+  try {
+    const res = await fetch("https://api.github.com/repos/anchore/grype/releases/latest", {
+      headers: { accept: "application/vnd.github+json", "user-agent": "freeitsm-mcp-server-build" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const tag = String(((await res.json()) as { tag_name?: unknown }).tag_name ?? "");
+    if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error(`unexpected tag "${tag}"`);
+    if (tag === pinned) return null;
+    return `grype ${pinned} -> ${tag}; set GRYPE_IMAGE in scripts/docker-build.ts to anchore/grype:${tag}@${currentDigest(`anchore/grype:${tag}`)}`;
+  } catch (e) {
+    console.error(`could not check for a newer grype (${(e as Error).message})`);
+    return null;
+  }
 }
 
 // 2. Production dependencies (npm is a .cmd on Windows, which needs a shell; the arguments are fixed)
@@ -66,8 +92,10 @@ if (audit.status !== 0) {
 // 3. Build
 const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
 const image = "freeitsm-mcp-server";
-execFileSync("docker", ["build", "-t", `${image}:${version}`, "-t", `${image}:latest`, "."], { stdio: "inherit" });
-console.error(`built ${image}:${version} and ${image}:latest`);
+// Not :latest - the MCP clients run that, and only `npm run image:update` sets it (verified published image).
+const tags = [`${image}:local`, `${image}:${version}-local`];
+execFileSync("docker", ["build", ...tags.flatMap((t) => ["-t", t]), "."], { stdio: "inherit" });
+console.error(`built ${tags.join(" and ")}`);
 
 // 4. Scan with grype (the scanner CI uses), from its own pinned image. The image is handed over
 // as a `docker save` archive on a read-only mount, so the scanner gets no Docker socket.
@@ -75,7 +103,7 @@ console.error(`built ${image}:${version} and ${image}:latest`);
 const dir = mkdtempSync(join(tmpdir(), "freeitsm-scan-"));
 const archive = join(dir, "image.tar");
 try {
-  execFileSync("docker", ["save", "-o", archive, `${image}:${version}`], { stdio: "inherit" });
+  execFileSync("docker", ["save", "-o", archive, tags[0]], { stdio: "inherit" });
   const scan = spawnSync(
     "docker",
     [
