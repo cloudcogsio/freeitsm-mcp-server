@@ -1,9 +1,11 @@
 # freeitsm-mcp-server
 
+[![Container image](https://img.shields.io/badge/ghcr.io-freeitsm--mcp--server-blue?logo=docker)](https://github.com/cloudcogsio/freeitsm-mcp-server/pkgs/container/freeitsm-mcp-server)
+
 A standalone [MCP](https://modelcontextprotocol.io) server that lets an AI assistant work with
 [FreeITSM](https://github.com/edmozley/freeitsm) through its REST API (`/api/v1`): search, read,
 create and update tickets, changes, problems, knowledge, assets and everything else the API offers
-(285 endpoints as of FreeITSM 4.12).
+(more than 300 endpoints in FreeITSM 5.4).
 
 **The API key is the security boundary.** The server is a plain API client: what the key may do
 (its permissions, company scope, expiry, rate limit and the analyst it acts as) is all the
@@ -19,7 +21,8 @@ fixed set of summary tools. This one covers the whole REST API, including writes
 
 ## Requirements
 
-- Node.js 22 or later, or Docker (see [Docker](#docker))
+- Node.js 22 or later, or Docker: a signed image for amd64 and arm64 is published as
+  `ghcr.io/cloudcogsio/freeitsm-mcp-server` (see [Docker](#docker))
 - A FreeITSM install with the REST API, and an API key from **System > API** with the
   permissions you want the assistant to have. A dedicated analyst (e.g. "AI Assistant") keeps
   the audit trail readable.
