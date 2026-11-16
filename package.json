@@ -36,7 +36,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test": "npm run build && tsx --test test/unit.test.ts test/server.test.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "fixtures": "tsx scripts/fixtures.ts"
+    "fixtures": "tsx scripts/fixtures.ts",
+    "docker:build": "tsx scripts/docker-build.ts"
   },
   "engines": {
     "node": ">=20.12"

@@ -75,6 +75,23 @@ are owned by root, so the process cannot modify its own code.
 docker build -t freeitsm-mcp-server .
 ```
 
+The base images are pinned by digest, so a plain `docker build` gives the same image every time
+and never picks up the bases' security updates. To build with current bases, run:
+
+```bash
+npm run docker:build              # update the pinned digests, audit, build :<version> and :latest, scan
+npm run docker:build -- --check   # only report base images that have updates
+```
+
+It moves each pinned digest to the one its tag points to now, runs `npm audit` on the production
+dependencies, builds, and scans the image with [grype](https://github.com/anchore/grype). Grype runs
+from its own pinned image and reads a saved copy of the image, so it needs no account and no access
+to the Docker socket. A failed scan exits with code 2. The scan also catches a base tag that is no
+longer maintained, which a digest update cannot: then move the `FROM` tag (for example to a newer
+Debian release). In this repository, Dependabot proposes the same digest updates (and npm and GitHub
+Actions updates) as weekly pull requests, and CI rebuilds and scans the image on every change and
+once a week.
+
 The server speaks MCP over stdio, so the client starts the container itself and keeps stdin
 open (`-i`). Recommended entry, locked down:
 

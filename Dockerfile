@@ -3,10 +3,13 @@
 # freeitsm-mcp-server as a container: MCP over stdio, so run it with `docker run -i`.
 # See "Docker" in README.md for the recommended (locked-down) run flags.
 #
-# Base images are pinned by digest; bump the tag and digest together.
+# Base images are pinned by digest, so a plain rebuild never picks up their security
+# updates. Build with `npm run docker:build`: it moves each pin to the digest its tag
+# points to now, audits the dependencies, builds and scans. Dependabot proposes the
+# same digest updates as pull requests.
 
 # ---- build: compile TypeScript ------------------------------------------------
-FROM node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS build
+FROM node:22-trixie-slim@sha256:68c76cfad89921b927eae28ba21407475e29d0ce450afcdbe70c1532db042b64 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 # --ignore-scripts: no dependency install scripts run, and `prepare` (tsc) waits for the sources
@@ -16,13 +19,13 @@ COPY src ./src
 RUN npx tsc
 
 # ---- deps: production dependencies only ----------------------------------------
-FROM node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS deps
+FROM node:22-trixie-slim@sha256:68c76cfad89921b927eae28ba21407475e29d0ce450afcdbe70c1532db042b64 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # ---- runtime: distroless, no shell, no package manager, non-root ---------------
-FROM gcr.io/distroless/nodejs22-debian12:nonroot@sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e
+FROM gcr.io/distroless/nodejs22-debian13:nonroot@sha256:39c66687298417dbf3ff2fb8b6012c20554494e16414ef7afd07b9abbb45b501
 LABEL org.opencontainers.image.title="freeitsm-mcp-server" \
       org.opencontainers.image.description="MCP server for the FreeITSM REST API (stdio)" \
       org.opencontainers.image.licenses="MIT"
