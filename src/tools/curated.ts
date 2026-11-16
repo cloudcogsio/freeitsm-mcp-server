@@ -168,13 +168,14 @@ Examples:
       watchers: "/tickets/{id}/watchers",
       forms: "/tickets/{id}/forms",
       checklists: "/tickets/{id}/checklists",
+      attachments: "/tickets/{id}/attachments",
     } as const;
     type Extra = keyof typeof extras;
     server.registerTool(
       "freeitsm_get_ticket",
       {
         title: "Get a ticket",
-        description: `Get one ticket's full detail, optionally with its notes, email thread, SLA state, time entries, audit history, watchers, forms and checklists in the same call.
+        description: `Get one ticket's full detail, optionally with its notes, email thread, SLA state, time entries, audit history, watchers, forms, checklists and attachments in the same call.
 Parts the key may not read are reported as unavailable rather than failing the whole call.
 To answer a checklist step, use freeitsm_api_write with PATCH /tickets/{id}/checklists/steps/{step_id}.`,
         inputSchema: z.strictObject({
@@ -182,7 +183,7 @@ To answer a checklist step, use freeitsm_api_write with PATCH /tickets/{id}/chec
           include: z
             .array(z.enum(Object.keys(extras) as [Extra, ...Extra[]]))
             .default([])
-            .describe("Extra parts to fetch: notes, thread, sla, time_entries, audit, watchers, forms, checklists"),
+            .describe("Extra parts to fetch: notes, thread, sla, time_entries, audit, watchers, forms, checklists, attachments"),
         }),
         annotations: READ,
       },

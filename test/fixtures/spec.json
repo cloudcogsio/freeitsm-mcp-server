@@ -112,6 +112,12 @@
                             "req": false
                         },
                         {
+                            "name": "include",
+                            "in": "query",
+                            "desc": "\"related\" adds each ticket's related block (counts and links, as on GET \/tickets\/{id}). Off by default: it runs extra queries per ticket.",
+                            "req": false
+                        },
+                        {
                             "name": "page \/ per_page",
                             "in": "query",
                             "desc": "Pagination (default 1 \/ 25, max per_page 100)",
@@ -233,6 +239,12 @@
                             "in": "body",
                             "desc": "Send-from mailbox for later replies",
                             "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "Where the ticket is about (default: the requester's location, when Tickets -> Settings says so): a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
+                            "req": false
                         }
                     ],
                     "body": {
@@ -308,7 +320,7 @@
                     "p": "\/tickets\/{id}",
                     "perm": "tickets.read",
                     "s": "Get one ticket",
-                    "d": "Full ticket detail including the original request body (description_html).",
+                    "d": "Full ticket detail including the original request body (description_html), custom fields, and related: counts of what is on the ticket (notes, messages, attachments, forms, checklists, watchers, time_entries) so you know which sub-endpoints are worth calling, and links to what it is linked with (tasks, problems, changes, projects, assets, CMDB objects, other tickets with the relation, and external tracker issues with their address). A count appears only if the key has read on that sub-endpoint's permission, and a link only if the key may read that kind of record in that company. The same related block is on the ticket's Full record webhook.",
                     "params": [
                         {
                             "name": "id",
@@ -403,6 +415,18 @@
                             "name": "company_id",
                             "in": "body",
                             "desc": "Move the ticket to another company (key must be scoped to both)",
+                            "req": false
+                        },
+                        {
+                            "name": "user_id",
+                            "in": "body",
+                            "desc": "Change the requester (5.2.0, #308): a person the key's analyst can see, in the ticket's company. Always written to the ticket's history.",
+                            "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "Where the ticket is about: a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
                             "req": false
                         }
                     ],
@@ -1019,6 +1043,34 @@
                             {
                                 "title": "Get the conversation",
                                 "note": "The full message thread — inbound and outbound — oldest first, with HTML bodies.",
+                                "path": {
+                                    "id": "42"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "m": "GET",
+                    "p": "\/tickets\/{id}\/attachments",
+                    "perm": "ticket_attachments.read",
+                    "s": "List a ticket's attachments",
+                    "d": "Everything attached to a ticket: files on its messages (source \"message\", source_id = the message id from \/thread) and documents on its notes (source \"note\", source_id = the note id from \/notes) - name, content type, size and when. Inline pictures inside an email body are left out. kind is \"file\", \"link\" (with its url) or \"files\" (a link to a file in the Files module, whose name is not given). Its length is related.counts.attachments on GET \/tickets\/{id}.",
+                    "params": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "desc": "Ticket id",
+                            "req": true
+                        }
+                    ],
+                    "section": "Ticket notes, conversation & history",
+                    "slug": "get-tickets-id-attachments",
+                    "extras": {
+                        "examples": [
+                            {
+                                "title": "A ticket's attachments",
+                                "note": "Files on its messages and documents on its notes.",
                                 "path": {
                                     "id": "42"
                                 }
@@ -2223,7 +2275,7 @@
                     "p": "\/virtual-estate\/{connection}\/reports",
                     "perm": "virtual_estate.create",
                     "s": "Send a collector report",
-                    "d": "What scripts\/Invoke-HyperVInventory.ps1 sends: the Hyper-V hosts, Failover Clusters, cluster roles and VMs it read. Accepted ONLY from the key the connection was given, so a key cannot write another estate (403 otherwise). scope names the clusters and standalone hosts the report covers; a report only ever marks objects in its own scope. Each section - clusters, hosts, cluster_roles, vms, vm_disks, vm_networks - is complete (exactly this list: what is missing is marked not_seen_since, never deleted), partial (added and updated only) or left out (untouched). Hosts are identified by hardware UUID (id); a missing, all-zero, all-F or repeated one falls back to the host's name and is marked name-based. VMs are identified by their Get-VM Id. Inside a report, VMs and roles name their host by host name. unreadable lists hosts or clusters that could not be read: everything on them is kept and marked not confirmed. A report older than the newest for the same scope is stale; the same scope, observed_at and content again is replayed (safe to resend); the same scope and observed_at with different content is 409 observation_conflict. Each section applies in its own savepoint: 207 when some failed (send the same report again to retry them), 422 when all did. A VM or host that comes back with a new identity while one of the same name stops being seen is raised for review in Assets -> Settings -> Hyper-V, never merged automatically.",
+                    "d": "What scripts\/Invoke-HyperVInventory.ps1 sends: the Hyper-V hosts, Failover Clusters, cluster roles and VMs it read. Accepted ONLY from the key the connection was given, so a key cannot write another estate (403 otherwise). scope names the clusters and standalone hosts the report covers; a report only ever marks objects in its own scope. Each section - clusters, hosts, cluster_roles, vms, vm_disks, vm_networks - is complete (exactly this list: what is missing is marked not_seen_since, never deleted), partial (added and updated only) or left out (untouched). Hosts are identified by hardware UUID (id); a missing, all-zero, all-F or repeated one falls back to the host's name and is marked name-based. VMs are identified by their Get-VM Id. Inside a report, VMs and roles name their host by host name. unreadable lists hosts or clusters that could not be read: everything on them is kept and marked not confirmed. A report older than the newest for the same scope is stale; the same scope, observed_at and content again is replayed (safe to resend); the same scope and observed_at with different content is 409 observation_conflict. Each section applies in its own savepoint: 207 when some failed (send the same report again to retry them), 422 when all did. A VM or host that comes back with a new identity while one of the same name stops being seen is raised for review in Assets -> Settings -> Hyper-V, never merged automatically. Optional sections.storage_volumes contains clusters: [{cluster_id, complete, items, error?}]. Each cluster_id must be in this connection and scope. Items carry resource_id and volume_id (required text identifiers, at most 191 characters), name, path, filesystem, state, coordinator_node, total_bytes and free_bytes. Identity is the cluster\/resource\/volume tuple; names, paths and coordinator changes do not change it. Each partition is one item. Non-negative signed BIGINT capacity readings are retained; invalid or unknown readings are null, zero is real, and used_bytes is derived only from valid total\/free values. For a read failure send complete=false, items=[] and error (at most 300 characters). Partial enumeration sends complete=false and the items read, without error. A cluster savepoint isolates malformed items from other clusters. A complete cluster read alone marks its missing volumes not seen. Failed reads retain previous facts and their successful observation time, mark not confirmed, and never affect VMs; the response reports per-cluster outcomes (207 for mixed success, 422 if all sections fail). Cluster attempt times reject older reads even under a different report scope. Omitted storage or omitted clusters leave stored storage untouched. Enable the collector with -IncludeStorage only after the server accepts this section.",
                     "params": [
                         {
                             "name": "connection",
@@ -2303,7 +2355,7 @@
                     "p": "\/virtual-estate\/{connection}",
                     "perm": "virtual_estate.read",
                     "s": "Is the collector on time?",
-                    "d": "The connection's state, for monitoring: freshness (on_time, late after its expected interval, overdue after the grace as well, never), when the last report arrived and what it was observing, its outcome and summary, the collector that sent it, how many clusters, hosts and VMs are currently seen (and how many VMs are not confirmed because their host could not be read), and how many identity changes wait for review. The key's company scope must cover the connection's company.",
+                    "d": "The connection's state, for monitoring: freshness (on_time, late after its expected interval, overdue after the grace as well, never), when the last report arrived and what it was observing, its outcome and summary, the collector that sent it, how many clusters, hosts and VMs are currently seen (and how many VMs are not confirmed because their host could not be read), and how many identity changes wait for review. The key's company scope must cover the connection's company. Also returns counts.storage_volumes (currently seen partitions) and storage, grouped by connection and cluster. Each group includes connection_id, connection_name, cluster_id, cluster_external_id, cluster_name, last_attempted_at, last_observed_at (last complete successful storage read), read_error and volumes. Each volume includes id, connection_id, cluster_id, external_id, resource_id, volume_id, name, path, filesystem, state, coordinator_node, total_bytes, free_bytes, used_bytes, first_seen_at, last_seen_observed_at, not_seen_since and not_confirmed_since. Timestamps are UTC RFC 3339 or null; unknown capacities are null. Groups with no storage read or no volumes are included to distinguish not collected, failed and successfully empty reads. Storage creates no VM dependencies or impact-analysis claims.",
                     "params": [
                         {
                             "name": "connection",
@@ -4742,6 +4794,12 @@
                             "in": "query",
                             "desc": "Pagination (default 1 \/ 25, max per_page 100)",
                             "req": false
+                        },
+                        {
+                            "name": "include",
+                            "in": "query",
+                            "desc": "related - add each task's `related` block (counts of its comments, forms and checklists; links to its ticket, change, contract, project, parent, subtasks and dependencies), as GET \/tasks\/{id} always has. Opt-in: it runs a few queries per task",
+                            "req": false
                         }
                     ],
                     "section": "Tasks",
@@ -4921,7 +4979,7 @@
                     "p": "\/tasks\/{id}",
                     "perm": "tasks.read",
                     "s": "Get one task",
-                    "d": "Full detail: parent summary, ordered subtask list, comments, and linked ticket\/change summaries (linked-ticket details only appear when the key's company scope could read that ticket directly).",
+                    "d": "Full detail: parent summary, ordered subtask list, comments, and linked ticket\/change summaries (linked-ticket details only appear when the key's company scope could read that ticket directly). Includes `related`: counts of the task's comments, forms and checklists (only those the key may read), and links to its ticket (number only), change, contract, project, parent task, subtasks and dependencies (only records the key may read).",
                     "params": [
                         {
                             "name": "id",
@@ -6269,6 +6327,12 @@
                             "in": "body",
                             "desc": "Default true",
                             "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "The site it covers: a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
+                            "req": false
                         }
                     ],
                     "body": {
@@ -6393,6 +6457,12 @@
                             "name": "…all POST fields…",
                             "in": "body",
                             "desc": "Everything creatable is patchable",
+                            "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "The site it covers: a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
                             "req": false
                         }
                     ],
@@ -8985,6 +9055,12 @@
                             "in": "body",
                             "desc": "builtin:<key> or saved:<id> - start already planned",
                             "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "The site it is about: a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
+                            "req": false
                         }
                     ],
                     "body": {
@@ -9074,6 +9150,12 @@
                             "name": "(any field from create)",
                             "in": "body",
                             "desc": "Only the fields sent are changed",
+                            "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "The site it is about: a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
                             "req": false
                         }
                     ],
@@ -12581,7 +12663,7 @@
                     "p": "\/forms",
                     "perm": "forms.create",
                     "s": "Create a form",
-                    "d": "Title required; fields is an ordered array of {field_type, label, options?, is_required?}. Types: text, textarea, email, number, checkbox, checkboxes, dropdown, radio (options array for the last three). Unknown types and empty labels are a 422 — stricter than the UI.",
+                    "d": "Title required; fields is an ordered array of {field_type, label, options?, is_required?}. The catalogue_* keys set the portal catalogue card (GH #348) - the picture is set in the form editor, never here. Types: text, textarea, email, number, checkbox, checkboxes, dropdown, radio (options array for the last three). Unknown types and empty labels are a 422 — stricter than the UI.",
                     "params": [
                         {
                             "name": "title",
@@ -12599,6 +12681,30 @@
                             "name": "fields",
                             "in": "body",
                             "desc": "Ordered array of field definitions",
+                            "req": false
+                        },
+                        {
+                            "name": "catalogue_summary",
+                            "in": "body",
+                            "desc": "GH #348: the portal catalogue card's one line - plain text, up to 255 characters; null or empty clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "catalogue_price",
+                            "in": "body",
+                            "desc": "The catalogue price, a number from 0 up (0 shows as Free); null or empty clears it. A portal request keeps the price it was made at",
+                            "req": false
+                        },
+                        {
+                            "name": "catalogue_currency",
+                            "in": "body",
+                            "desc": "ISO 4217 code (e.g. GBP); null or empty = the install's currency",
+                            "req": false
+                        },
+                        {
+                            "name": "catalogue_price_period",
+                            "in": "body",
+                            "desc": "once (the default) or month",
                             "req": false
                         }
                     ],
@@ -12700,7 +12806,7 @@
                     "p": "\/forms\/{id}",
                     "perm": "forms.read",
                     "s": "Get one form",
-                    "d": "The form with its fields and version info (version.is_current = editable leaf).",
+                    "d": "The form with its fields and version info (version.is_current = editable leaf), and its portal catalogue card (catalogue_summary, catalogue_price, catalogue_currency, catalogue_price_period, catalogue_has_image - null \/ false when it has none).",
                     "params": [
                         {
                             "name": "id",
@@ -12740,6 +12846,12 @@
                             "name": "title \/ description \/ is_active \/ fields",
                             "in": "body",
                             "desc": "What to change",
+                            "req": false
+                        },
+                        {
+                            "name": "catalogue_summary \/ catalogue_price \/ catalogue_currency \/ catalogue_price_period",
+                            "in": "body",
+                            "desc": "GH #348: the portal catalogue card, as on create; only the keys sent change. The picture is set in the form editor - catalogue_image_path is ignored here",
                             "req": false
                         }
                     ],
@@ -14743,7 +14855,7 @@
                     "p": "\/users",
                     "perm": "users.read",
                     "s": "List \/ search requesters",
-                    "d": "End users who raise tickets. Search with q, or look one up exactly with email.",
+                    "d": "End users who raise tickets. Search with q, or look one up exactly with email or employee_id.",
                     "params": [
                         {
                             "name": "q",
@@ -14755,6 +14867,12 @@
                             "name": "email",
                             "in": "query",
                             "desc": "Exact email lookup",
+                            "req": false
+                        },
+                        {
+                            "name": "employee_id",
+                            "in": "query",
+                            "desc": "Exact payroll \/ HR number, ignoring case",
                             "req": false
                         },
                         {
@@ -14788,6 +14906,13 @@
                                 "query": {
                                     "q": "example.com",
                                     "per_page": "50"
+                                }
+                            },
+                            {
+                                "title": "Find by payroll number",
+                                "note": "The key an HR or ERP system knows them by. Not unique: more than one requester can come back.",
+                                "query": {
+                                    "employee_id": "E1001"
                                 }
                             }
                         ]
@@ -14850,6 +14975,24 @@
                             "name": "cost_centre_id",
                             "in": "body",
                             "desc": "The cost centre they are charged to: an ACTIVE one of their company (no company = the Default company's). 422 otherwise",
+                            "req": false
+                        },
+                        {
+                            "name": "employee_id",
+                            "in": "body",
+                            "desc": "Payroll \/ HR number (64 characters at most; not unique)",
+                            "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "Where they sit: a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
+                            "req": false
+                        },
+                        {
+                            "name": "custom_fields",
+                            "in": "body",
+                            "desc": "Custom fields - the shared person fields and their company's own (System -> Custom fields): an object of field key -> value; \"\" or null clears one. Unknown keys and values a field does not accept are refused (422); a required field must be given when creating",
                             "req": false
                         }
                     ],
@@ -14924,6 +15067,24 @@
                             "name": "cost_centre_id",
                             "in": "body",
                             "desc": "An active cost centre of the company they will be in, or null. Moving company with tenant_id needs one of the new company's (or null) when they have one",
+                            "req": false
+                        },
+                        {
+                            "name": "employee_id",
+                            "in": "body",
+                            "desc": "Payroll \/ HR number (64 characters at most); null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "location_id",
+                            "in": "body",
+                            "desc": "Where they sit (dropped when tenant_id moves them to a company that cannot use it): a location id from System -> Locations - one of the record's company's or a shared one; null clears it. Read back as location {id, name, path}",
+                            "req": false
+                        },
+                        {
+                            "name": "custom_fields",
+                            "in": "body",
+                            "desc": "Custom fields - the shared person fields and their company's own (System -> Custom fields): an object of field key -> value; \"\" or null clears one. Unknown keys and values a field does not accept are refused (422); a required field must be given when creating",
                             "req": false
                         }
                     ],
@@ -15271,6 +15432,403 @@
             ]
         },
         {
+            "section": "Companies",
+            "items": [
+                {
+                    "m": "GET",
+                    "p": "\/companies",
+                    "perm": "companies.read",
+                    "s": "List companies",
+                    "d": "The companies (tenants) this key can see, each with is_active, ticket_code, external_ref (your ERP \/ CRM key) and tax_id. Not paginated. Active companies only unless active says otherwise - except an exact external_ref or tax_id lookup, which finds the company active or not.",
+                    "params": [
+                        {
+                            "name": "q",
+                            "in": "query",
+                            "desc": "Name, external_ref or tax_id contains this",
+                            "req": false
+                        },
+                        {
+                            "name": "external_ref",
+                            "in": "query",
+                            "desc": "Exact external_ref, ignoring case (active or not, unless active is given)",
+                            "req": false
+                        },
+                        {
+                            "name": "tax_id",
+                            "in": "query",
+                            "desc": "Exact tax_id, ignoring case (active or not, unless active is given)",
+                            "req": false
+                        },
+                        {
+                            "name": "active",
+                            "in": "query",
+                            "desc": "true (the default), false, or all",
+                            "req": false
+                        }
+                    ],
+                    "section": "Companies",
+                    "slug": "get-companies",
+                    "extras": {
+                        "examples": [
+                            {
+                                "title": "All companies",
+                                "note": "No parameters - the active companies (tenants) this key can see; single-company installs get one entry."
+                            },
+                            {
+                                "title": "Find one by your ERP key",
+                                "note": "Exact, ignoring case - finds the company whether or not it is active.",
+                                "query": {
+                                    "external_ref": "CUST-00042"
+                                }
+                            },
+                            {
+                                "title": "Search",
+                                "note": "Name, external_ref or tax_id contains the text.",
+                                "query": {
+                                    "q": "acme"
+                                }
+                            },
+                            {
+                                "title": "Inactive companies",
+                                "note": "active=false for inactive only, active=all for both.",
+                                "query": {
+                                    "active": "false"
+                                }
+                            }
+                        ],
+                        "errors": [
+                            {
+                                "code": 400,
+                                "slug": "invalid_parameter",
+                                "when": "active is not true, false or all."
+                            }
+                        ]
+                    }
+                },
+                {
+                    "m": "GET",
+                    "p": "\/companies\/{id}",
+                    "perm": "companies.read",
+                    "s": "Get a company",
+                    "d": "One company, active or not. A company outside the key's companies is 404, the same as an unknown id.",
+                    "params": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "desc": "Company id",
+                            "req": true
+                        }
+                    ],
+                    "section": "Companies",
+                    "slug": "get-companies-id",
+                    "extras": {
+                        "examples": [
+                            {
+                                "title": "Get a company",
+                                "note": "Includes its outside reference and tax ID.",
+                                "path": {
+                                    "id": "3"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "m": "POST",
+                    "p": "\/companies",
+                    "perm": "companies.create",
+                    "s": "Create a company",
+                    "d": "Creates a company (tenant). Needs a key that acts as a System administrator and is scoped to all companies (403 otherwise), as System -> Companies does in the app. Returns the company (201).",
+                    "params": [
+                        {
+                            "name": "name",
+                            "in": "body",
+                            "desc": "Company name (150 characters at most)",
+                            "req": true
+                        },
+                        {
+                            "name": "is_active",
+                            "in": "body",
+                            "desc": "false = inactive. The Default company cannot be made inactive (422)",
+                            "req": false
+                        },
+                        {
+                            "name": "ticket_code",
+                            "in": "body",
+                            "desc": "Ticket number prefix, unique when set; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "external_ref",
+                            "in": "body",
+                            "desc": "The company's key in your ERP or CRM (100 characters at most), unique when set ignoring case; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "tax_id",
+                            "in": "body",
+                            "desc": "Tax number - VAT, AFM ... (50 characters at most), unique when set ignoring case; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "custom_fields",
+                            "in": "body",
+                            "desc": "Custom fields (System -> Custom fields): an object of field key -> value; \"\" or null clears one. Unknown keys and values a field does not accept are refused (422); a required field must be given when creating",
+                            "req": false
+                        }
+                    ],
+                    "body": {
+                        "name": "Acme Plumbing Ltd",
+                        "external_ref": "CUST-00042",
+                        "tax_id": "GB123456789"
+                    },
+                    "section": "Companies",
+                    "slug": "post-companies",
+                    "extras": {
+                        "examples": [
+                            {
+                                "title": "A new customer",
+                                "note": "Name is the only required field.",
+                                "body": {
+                                    "name": "Acme Plumbing Ltd"
+                                }
+                            },
+                            {
+                                "title": "With its ERP key and tax number",
+                                "note": "external_ref is what POST \/companies\/upsert matches on later.",
+                                "body": {
+                                    "name": "Acme Plumbing Ltd",
+                                    "external_ref": "CUST-00042",
+                                    "tax_id": "GB123456789"
+                                }
+                            }
+                        ],
+                        "errors": [
+                            {
+                                "code": 422,
+                                "slug": "missing_field",
+                                "when": "name is missing."
+                            },
+                            {
+                                "code": 422,
+                                "slug": "invalid_field",
+                                "when": "A field is too long or not text."
+                            },
+                            {
+                                "code": 409,
+                                "slug": "duplicate",
+                                "when": "The ticket code, external_ref or tax_id is already used by another company."
+                            },
+                            {
+                                "code": 403,
+                                "slug": "forbidden",
+                                "when": "The key does not act as an administrator, or is scoped to specific companies."
+                            }
+                        ]
+                    }
+                },
+                {
+                    "m": "POST",
+                    "p": "\/companies\/upsert",
+                    "perm": "companies.create",
+                    "s": "Create or update a company by external_ref",
+                    "d": "The call an ERP or CRM sync makes for each customer, as often as it likes, without duplicates: finds the company by external_ref (ignoring case, active or not) and changes only the fields sent, or creates it when there is none (name then required). Responds with the company plus created: 201 + true when it was created, 200 + false when it was updated. Also needs companies.update. Needs a key that acts as a System administrator and is scoped to all companies (403 otherwise), as System -> Companies does in the app.",
+                    "params": [
+                        {
+                            "name": "external_ref",
+                            "in": "body",
+                            "desc": "The company's key in your ERP or CRM (100 characters at most) - what it is matched on",
+                            "req": true
+                        },
+                        {
+                            "name": "name",
+                            "in": "body",
+                            "desc": "Company name (150 characters at most)",
+                            "req": false
+                        },
+                        {
+                            "name": "is_active",
+                            "in": "body",
+                            "desc": "false = inactive. The Default company cannot be made inactive (422)",
+                            "req": false
+                        },
+                        {
+                            "name": "ticket_code",
+                            "in": "body",
+                            "desc": "Ticket number prefix, unique when set; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "tax_id",
+                            "in": "body",
+                            "desc": "Tax number - VAT, AFM ... (50 characters at most), unique when set ignoring case; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "custom_fields",
+                            "in": "body",
+                            "desc": "Custom fields (System -> Custom fields): an object of field key -> value; \"\" or null clears one. Unknown keys and values a field does not accept are refused (422); a required field must be given when creating",
+                            "req": false
+                        }
+                    ],
+                    "body": {
+                        "external_ref": "CUST-00042",
+                        "name": "Acme Plumbing Ltd",
+                        "tax_id": "GB123456789",
+                        "is_active": true
+                    },
+                    "section": "Companies",
+                    "slug": "post-companies-upsert",
+                    "extras": {
+                        "examples": [
+                            {
+                                "title": "Nightly customer sync",
+                                "note": "Send every customer every night: the first run creates them (201), later runs update them (200).",
+                                "body": {
+                                    "external_ref": "CUST-00042",
+                                    "name": "Acme Plumbing Ltd",
+                                    "tax_id": "GB123456789",
+                                    "is_active": true
+                                }
+                            },
+                            {
+                                "title": "A customer who left",
+                                "note": "Only is_active changes; the name and tax ID stay.",
+                                "body": {
+                                    "external_ref": "CUST-00042",
+                                    "is_active": false
+                                }
+                            }
+                        ],
+                        "errors": [
+                            {
+                                "code": 422,
+                                "slug": "missing_field",
+                                "when": "external_ref is missing, or name is missing for a company that does not exist yet."
+                            },
+                            {
+                                "code": 422,
+                                "slug": "invalid_field",
+                                "when": "A field is too long or not text, or the Default company would be made inactive."
+                            },
+                            {
+                                "code": 409,
+                                "slug": "duplicate",
+                                "when": "The ticket code, external_ref or tax_id is already used by another company."
+                            },
+                            {
+                                "code": 403,
+                                "slug": "forbidden",
+                                "when": "The key does not act as an administrator, or is scoped to specific companies."
+                            }
+                        ]
+                    }
+                },
+                {
+                    "m": "PATCH",
+                    "p": "\/companies\/{id}",
+                    "perm": "companies.update",
+                    "s": "Update a company",
+                    "d": "Changes only the fields sent. Needs a key that acts as a System administrator and is scoped to all companies (403 otherwise), as System -> Companies does in the app. A company outside the key's companies is 404, the same as an unknown id.",
+                    "params": [
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "desc": "Company id",
+                            "req": true
+                        },
+                        {
+                            "name": "name",
+                            "in": "body",
+                            "desc": "Company name (150 characters at most)",
+                            "req": false
+                        },
+                        {
+                            "name": "is_active",
+                            "in": "body",
+                            "desc": "false = inactive. The Default company cannot be made inactive (422)",
+                            "req": false
+                        },
+                        {
+                            "name": "ticket_code",
+                            "in": "body",
+                            "desc": "Ticket number prefix, unique when set; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "external_ref",
+                            "in": "body",
+                            "desc": "The company's key in your ERP or CRM (100 characters at most), unique when set ignoring case; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "tax_id",
+                            "in": "body",
+                            "desc": "Tax number - VAT, AFM ... (50 characters at most), unique when set ignoring case; null or \"\" clears it",
+                            "req": false
+                        },
+                        {
+                            "name": "custom_fields",
+                            "in": "body",
+                            "desc": "Custom fields (System -> Custom fields): an object of field key -> value; \"\" or null clears one. Unknown keys and values a field does not accept are refused (422); a required field must be given when creating",
+                            "req": false
+                        }
+                    ],
+                    "body": {
+                        "tax_id": "GB987654321"
+                    },
+                    "section": "Companies",
+                    "slug": "patch-companies-id",
+                    "extras": {
+                        "examples": [
+                            {
+                                "title": "Change the tax number",
+                                "note": "Nothing else changes.",
+                                "path": {
+                                    "id": "3"
+                                },
+                                "body": {
+                                    "tax_id": "GB987654321"
+                                }
+                            },
+                            {
+                                "title": "Switch a company off",
+                                "note": "The Default company cannot be made inactive (422).",
+                                "path": {
+                                    "id": "3"
+                                },
+                                "body": {
+                                    "is_active": false
+                                }
+                            }
+                        ],
+                        "errors": [
+                            {
+                                "code": 422,
+                                "slug": "invalid_field",
+                                "when": "A field is too long or not text, or the Default company would be made inactive."
+                            },
+                            {
+                                "code": 422,
+                                "slug": "missing_field",
+                                "when": "No fields to update, or name sent empty."
+                            },
+                            {
+                                "code": 409,
+                                "slug": "duplicate",
+                                "when": "The ticket code, external_ref or tax_id is already used by another company."
+                            },
+                            {
+                                "code": 403,
+                                "slug": "forbidden",
+                                "when": "The key does not act as an administrator, or is scoped to specific companies."
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
             "section": "Reference data",
             "items": [
                 {
@@ -15306,24 +15864,6 @@
                 },
                 {
                     "m": "GET",
-                    "p": "\/companies",
-                    "perm": "companies.read",
-                    "s": "List companies",
-                    "d": "The companies (tenants) this key is scoped to see.",
-                    "params": [],
-                    "section": "Reference data",
-                    "slug": "get-companies",
-                    "extras": {
-                        "examples": [
-                            {
-                                "title": "All companies",
-                                "note": "No parameters — the companies (tenants) this key is scoped to see; single-company installs get one entry."
-                            }
-                        ]
-                    }
-                },
-                {
-                    "m": "GET",
                     "p": "\/statuses",
                     "perm": "reference.read",
                     "s": "List ticket statuses",
@@ -15345,8 +15885,15 @@
                     "p": "\/priorities",
                     "perm": "reference.read",
                     "s": "List priorities",
-                    "d": "All priorities with their SLA response\/resolution targets in minutes.",
-                    "params": [],
+                    "d": "All priorities with their SLA response\/resolution targets in minutes. Pass company_id for the ones that company's tickets can use.",
+                    "params": [
+                        {
+                            "name": "company_id",
+                            "in": "query",
+                            "desc": "Resolve the list for one company",
+                            "req": false
+                        }
+                    ],
                     "section": "Reference data",
                     "slug": "get-priorities",
                     "extras": {
@@ -15354,6 +15901,13 @@
                             {
                                 "title": "All priorities",
                                 "note": "No parameters — every ticket priority with its SLA response and resolution targets in minutes."
+                            },
+                            {
+                                "title": "One company's view",
+                                "note": "company_id gives that company's own priorities and the shared ones it has not hidden — what can be set on its tickets.",
+                                "query": {
+                                    "company_id": "2"
+                                }
                             }
                         ]
                     }
@@ -16260,7 +16814,35 @@
             "examples": [
                 {
                     "title": "All companies",
-                    "note": "No parameters — the companies (tenants) this key is scoped to see; single-company installs get one entry."
+                    "note": "No parameters - the active companies (tenants) this key can see; single-company installs get one entry."
+                },
+                {
+                    "title": "Find one by your ERP key",
+                    "note": "Exact, ignoring case - finds the company whether or not it is active.",
+                    "query": {
+                        "external_ref": "CUST-00042"
+                    }
+                },
+                {
+                    "title": "Search",
+                    "note": "Name, external_ref or tax_id contains the text.",
+                    "query": {
+                        "q": "acme"
+                    }
+                },
+                {
+                    "title": "Inactive companies",
+                    "note": "active=false for inactive only, active=all for both.",
+                    "query": {
+                        "active": "false"
+                    }
+                }
+            ],
+            "errors": [
+                {
+                    "code": 400,
+                    "slug": "invalid_parameter",
+                    "when": "active is not true, false or all."
                 }
             ]
         },
@@ -16277,6 +16859,13 @@
                 {
                     "title": "All priorities",
                     "note": "No parameters — every ticket priority with its SLA response and resolution targets in minutes."
+                },
+                {
+                    "title": "One company's view",
+                    "note": "company_id gives that company's own priorities and the shared ones it has not hidden — what can be set on its tickets.",
+                    "query": {
+                        "company_id": "2"
+                    }
                 }
             ]
         },
@@ -16959,6 +17548,13 @@
                     "query": {
                         "q": "example.com",
                         "per_page": "50"
+                    }
+                },
+                {
+                    "title": "Find by payroll number",
+                    "note": "The key an HR or ERP system knows them by. Not unique: more than one requester can come back.",
+                    "query": {
+                        "employee_id": "E1001"
                     }
                 }
             ]
@@ -21885,6 +22481,149 @@
                     "query": {
                         "strict": 1
                     }
+                }
+            ]
+        },
+        "GET \/companies\/{id}": {
+            "examples": [
+                {
+                    "title": "Get a company",
+                    "note": "Includes its outside reference and tax ID.",
+                    "path": {
+                        "id": "3"
+                    }
+                }
+            ]
+        },
+        "POST \/companies": {
+            "examples": [
+                {
+                    "title": "A new customer",
+                    "note": "Name is the only required field.",
+                    "body": {
+                        "name": "Acme Plumbing Ltd"
+                    }
+                },
+                {
+                    "title": "With its ERP key and tax number",
+                    "note": "external_ref is what POST \/companies\/upsert matches on later.",
+                    "body": {
+                        "name": "Acme Plumbing Ltd",
+                        "external_ref": "CUST-00042",
+                        "tax_id": "GB123456789"
+                    }
+                }
+            ],
+            "errors": [
+                {
+                    "code": 422,
+                    "slug": "missing_field",
+                    "when": "name is missing."
+                },
+                {
+                    "code": 422,
+                    "slug": "invalid_field",
+                    "when": "A field is too long or not text."
+                },
+                {
+                    "code": 409,
+                    "slug": "duplicate",
+                    "when": "The ticket code, external_ref or tax_id is already used by another company."
+                },
+                {
+                    "code": 403,
+                    "slug": "forbidden",
+                    "when": "The key does not act as an administrator, or is scoped to specific companies."
+                }
+            ]
+        },
+        "POST \/companies\/upsert": {
+            "examples": [
+                {
+                    "title": "Nightly customer sync",
+                    "note": "Send every customer every night: the first run creates them (201), later runs update them (200).",
+                    "body": {
+                        "external_ref": "CUST-00042",
+                        "name": "Acme Plumbing Ltd",
+                        "tax_id": "GB123456789",
+                        "is_active": true
+                    }
+                },
+                {
+                    "title": "A customer who left",
+                    "note": "Only is_active changes; the name and tax ID stay.",
+                    "body": {
+                        "external_ref": "CUST-00042",
+                        "is_active": false
+                    }
+                }
+            ],
+            "errors": [
+                {
+                    "code": 422,
+                    "slug": "missing_field",
+                    "when": "external_ref is missing, or name is missing for a company that does not exist yet."
+                },
+                {
+                    "code": 422,
+                    "slug": "invalid_field",
+                    "when": "A field is too long or not text, or the Default company would be made inactive."
+                },
+                {
+                    "code": 409,
+                    "slug": "duplicate",
+                    "when": "The ticket code, external_ref or tax_id is already used by another company."
+                },
+                {
+                    "code": 403,
+                    "slug": "forbidden",
+                    "when": "The key does not act as an administrator, or is scoped to specific companies."
+                }
+            ]
+        },
+        "PATCH \/companies\/{id}": {
+            "examples": [
+                {
+                    "title": "Change the tax number",
+                    "note": "Nothing else changes.",
+                    "path": {
+                        "id": "3"
+                    },
+                    "body": {
+                        "tax_id": "GB987654321"
+                    }
+                },
+                {
+                    "title": "Switch a company off",
+                    "note": "The Default company cannot be made inactive (422).",
+                    "path": {
+                        "id": "3"
+                    },
+                    "body": {
+                        "is_active": false
+                    }
+                }
+            ],
+            "errors": [
+                {
+                    "code": 422,
+                    "slug": "invalid_field",
+                    "when": "A field is too long or not text, or the Default company would be made inactive."
+                },
+                {
+                    "code": 422,
+                    "slug": "missing_field",
+                    "when": "No fields to update, or name sent empty."
+                },
+                {
+                    "code": 409,
+                    "slug": "duplicate",
+                    "when": "The ticket code, external_ref or tax_id is already used by another company."
+                },
+                {
+                    "code": 403,
+                    "slug": "forbidden",
+                    "when": "The key does not act as an administrator, or is scoped to specific companies."
                 }
             ]
         }

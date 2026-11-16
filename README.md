@@ -119,7 +119,7 @@ Dedicated tools (each appears only if the key has the permission it needs):
 | Tool | Endpoint(s) |
 |---|---|
 | `freeitsm_whoami` | `GET /ping` - the key's analyst, companies, permissions |
-| `freeitsm_search_tickets`, `freeitsm_get_ticket` | `GET /tickets`, `/tickets/{id}` (+ notes, thread, SLA, time, audit, watchers, forms, checklists) |
+| `freeitsm_search_tickets`, `freeitsm_get_ticket` | `GET /tickets`, `/tickets/{id}` (+ notes, thread, SLA, time, audit, watchers, forms, checklists, attachments) |
 | `freeitsm_create_ticket`, `freeitsm_update_ticket` | `POST /tickets`, `PATCH /tickets/{id}` |
 | `freeitsm_add_ticket_note`, `freeitsm_log_time` | `POST /tickets/{id}/notes`, `/time-entries` |
 | `freeitsm_search_knowledge`, `freeitsm_get_article` | `GET /knowledge/articles[/{id}]` |
@@ -139,10 +139,12 @@ Generic tools, covering every endpoint:
 | `freeitsm_api_write` | Any permitted POST / PUT / PATCH / DELETE (hidden when read-only or the key has no write permission) |
 
 The endpoint catalogue is read at startup from the install's own `/api/v1/openapi.json` and
-`/api/v1/spec.json`, so it matches the FreeITSM version you connect to. An endpoint whose required
-permission cannot be determined is treated as unavailable. An endpoint whose description says it
-needs a second permission ("Needs documents.download as well as projects.read") is available only
-when the key has both.
+`/api/v1/spec.json`, so it matches the FreeITSM version you connect to. From FreeITSM 5.4 each
+operation states its permission (`x-permission`) and any further one it may need (`x-permissions-also`);
+older installs are read from `spec.json` and the endpoint descriptions. An endpoint whose required
+permission cannot be determined is treated as unavailable. An endpoint that may need a second
+permission (such as `documents.download` as well as `projects.read`) is available only when the key
+has both, because FreeITSM counts refused calls against the key.
 
 ## Security notes
 

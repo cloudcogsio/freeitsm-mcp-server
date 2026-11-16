@@ -5,7 +5,9 @@
  *   GET /api/v1/openapi.json  (public) - paths, parameters, request examples
  *   GET /api/v1/spec.json     (public) - the permission each endpoint needs
  *
- * If spec.json is unavailable, the permission is read from the OpenAPI 403
+ * FreeITSM 5.4+ states the permissions on each operation (x-permission and
+ * x-permissions-also), and those are used first. On older installs the
+ * permission comes from spec.json; if that is unavailable, from the OpenAPI 403
  * response text ("The key does not have the tickets.read permission.").
  * An endpoint whose permission cannot be determined is treated as unavailable
  * (fail closed). FreeITSM enforces the key on every call regardless.
@@ -72,7 +74,12 @@ type OpenApiOperation = {
   parameters?: { name: string; in: string; required?: boolean; description?: string }[];
   requestBody?: { content?: Record<string, { examples?: Record<string, { summary?: string; value?: unknown }> }> };
   responses?: Record<string, { description?: string }>;
+  /** FreeITSM 5.4+: the key permission the operation needs ("tickets.read") */
+  "x-permission"?: unknown;
+  /** FreeITSM 5.4+: further permissions it may need, depending on the request */
+  "x-permissions-also"?: unknown;
 };
+const PERMISSION = /^[a-z0-9_]+\.[a-z0-9_]+$/i;
 type SpecItem = { m: string; p: string; perm?: string; params?: { name: string; in: string; req?: boolean; desc?: string }[] };
 
 export class Catalogue {
@@ -113,7 +120,10 @@ export class Catalogue {
         const item = specByKey.get(`${method} ${path}`);
 
         let permission: string | null | undefined;
-        if (item?.perm) {
+        const xPermission = op["x-permission"];
+        if (typeof xPermission === "string" && PERMISSION.test(xPermission)) {
+          permission = xPermission.toLowerCase(); // FreeITSM 5.4+: stated per operation
+        } else if (item?.perm) {
           permission = item.perm === "none" ? null : item.perm;
         } else if (op.responses && !op.responses["403"]) {
           permission = null; // documented with no 403: any valid key
@@ -129,9 +139,16 @@ export class Catalogue {
         const multipart = "multipart/form-data" in content || /multipart\/form-data/i.test(op.description ?? "");
         // A described upload whose OpenAPI body is JSON takes either (e.g. a file or a link).
         const json = !multipart || "application/json" in content;
-        const extraPermissions = [...(op.description ?? "").matchAll(/\bNeeds ([a-z0-9_]+\.[a-z0-9_]+) as well as\b/gi)]
-          .map((m) => m[1].toLowerCase())
-          .filter((p) => p !== permission);
+        // Second permissions, from x-permissions-also (5.4+) and the description wording (older
+        // installs). FreeITSM needs them only for some requests, but a refused call counts against
+        // the key, so they are all required here (fail closed).
+        const xAlso = Array.isArray(op["x-permissions-also"]) ? op["x-permissions-also"] : [];
+        const extraPermissions = [
+          ...new Set([
+            ...xAlso.filter((p): p is string => typeof p === "string" && PERMISSION.test(p)).map((p) => p.toLowerCase()),
+            ...[...(op.description ?? "").matchAll(/\bNeeds ([a-z0-9_]+\.[a-z0-9_]+) as well as\b/gi)].map((m) => m[1].toLowerCase()),
+          ]),
+        ].filter((p) => p !== permission);
 
         endpoints.push({
           method,

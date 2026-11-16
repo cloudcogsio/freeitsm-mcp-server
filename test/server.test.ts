@@ -160,8 +160,11 @@ test("a sub-path install URL and inline queries are handled", async () => {
 });
 
 test("endpoints with an unknown permission are unavailable (fail closed)", async () => {
-  // spec.json missing, and an OpenAPI 403 text that names no permission
+  // An install before 5.4 (no x-permission), spec.json missing, and an OpenAPI 403 text that names no permission
   const doc = JSON.parse(OPENAPI);
+  for (const ops of Object.values(doc.paths) as Record<string, Record<string, unknown>>[]) {
+    for (const op of Object.values(ops)) if (op && typeof op === "object") delete op["x-permission"], delete op["x-permissions-also"];
+  }
   doc.paths["/tickets"].get.responses["403"].description = "Forbidden.";
   globalThis.fetch = (async (input: string | URL | Request) => {
     const path = new URL(String(input)).pathname.replace(/^\/api\/v1/, "");
@@ -190,6 +193,31 @@ test("an endpoint that needs a second permission is unavailable without it", asy
   assert.equal(seen.length, before, "a call FreeITSM would refuse is not sent");
   const withIt = await connect({ projects: ["read"], documents: ["download"] });
   assert.equal(withIt.deps.access.allows(withIt.deps.catalogue.find("GET", content)), true);
+});
+
+test("x-permission and x-permissions-also (FreeITSM 5.4+) are used first", async () => {
+  // No spec.json and no usable 403 text: the permission comes from x-permission alone.
+  const doc = JSON.parse(OPENAPI);
+  doc.paths["/tickets"].get.responses["403"].description = "Forbidden.";
+  doc.paths["/tickets"].get["x-permission"] = "tickets.read";
+  doc.paths["/accounts/sync"].post["x-permission"] = "accounts.update";
+  doc.paths["/accounts/sync"].post["x-permissions-also"] = ["accounts.create", "not a permission"];
+  const key = (permissions: Record<string, string[]>) => async (input: string | URL | Request) => {
+    const path = new URL(String(input)).pathname.replace(/^\/api\/v1/, "");
+    if (path === "/openapi.json") return json(doc);
+    if (path === "/spec.json") return new Response("nope", { status: 404 });
+    return json({ data: { ok: true, key: { name: "k", acts_as: "a", permissions, companies: null, expires_at: null } } });
+  };
+  globalThis.fetch = key({ tickets: ["read"], accounts: ["update"] }) as typeof fetch;
+  const deps = await bootstrap({ FREEITSM_URL: "http://freeitsm.test", FREEITSM_API_KEY: "fitsm_test" });
+  assert.equal(deps.catalogue.find("GET", "/tickets")!.permission, "tickets.read");
+  assert.equal(deps.access.allows(deps.catalogue.find("GET", "/tickets")), true);
+  const sync = deps.catalogue.find("POST", "/accounts/sync")!;
+  assert.deepEqual(sync.extraPermissions, ["accounts.create"]);
+  assert.match((deps.access.check(sync) as { reason: string }).reason, /accounts\.create/);
+  globalThis.fetch = key({ accounts: ["update", "create"] }) as typeof fetch;
+  const full = await bootstrap({ FREEITSM_URL: "http://freeitsm.test", FREEITSM_API_KEY: "fitsm_test" });
+  assert.equal(full.access.allows(full.catalogue.find("POST", "/accounts/sync")), true);
 });
 
 test("project documents: a link goes as JSON, a file as multipart", async () => {
