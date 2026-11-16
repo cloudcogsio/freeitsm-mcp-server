@@ -9,7 +9,7 @@
 # same digest updates as pull requests.
 
 # ---- build: compile TypeScript ------------------------------------------------
-FROM node:22-trixie-slim@sha256:68c76cfad89921b927eae28ba21407475e29d0ce450afcdbe70c1532db042b64 AS build
+FROM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 # --ignore-scripts: no dependency install scripts run, and `prepare` (tsc) waits for the sources
@@ -19,13 +19,13 @@ COPY src ./src
 RUN npx tsc
 
 # ---- deps: production dependencies only ----------------------------------------
-FROM node:22-trixie-slim@sha256:68c76cfad89921b927eae28ba21407475e29d0ce450afcdbe70c1532db042b64 AS deps
+FROM node:26-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 
 # ---- runtime: distroless, no shell, no package manager, non-root ---------------
-FROM gcr.io/distroless/nodejs22-debian13:nonroot@sha256:39c66687298417dbf3ff2fb8b6012c20554494e16414ef7afd07b9abbb45b501
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:1d736cf8b5716c07a245301f92717143215d248fd55771ee1936ef4b3302e531
 LABEL org.opencontainers.image.title="freeitsm-mcp-server" \
       org.opencontainers.image.description="MCP server for the FreeITSM REST API (stdio)" \
       org.opencontainers.image.licenses="MIT"
