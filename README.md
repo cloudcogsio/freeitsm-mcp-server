@@ -19,7 +19,7 @@ fixed set of summary tools. This one covers the whole REST API, including writes
 
 ## Requirements
 
-- Node.js 20.12 or later, or Docker (see [Docker](#docker))
+- Node.js 22 or later, or Docker (see [Docker](#docker))
 - A FreeITSM install with the REST API, and an API key from **System > API** with the
   permissions you want the assistant to have. A dedicated analyst (e.g. "AI Assistant") keeps
   the audit trail readable.
