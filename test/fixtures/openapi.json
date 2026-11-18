@@ -7641,7 +7641,7 @@
                         "schema": {
                             "type": "string"
                         },
-                        "description": "Scheduled-work window (ISO 8601) — the calendar shape"
+                        "description": "Scheduled-work window, local wall-clock (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, no time zone) — the calendar shape"
                     },
                     {
                         "name": "work_start_to",
@@ -7650,7 +7650,7 @@
                         "schema": {
                             "type": "string"
                         },
-                        "description": "Scheduled-work window (ISO 8601) — the calendar shape"
+                        "description": "Scheduled-work window, local wall-clock (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, no time zone) — the calendar shape"
                     },
                     {
                         "name": "created_since",
@@ -7813,8 +7813,8 @@
                                         "risk_impact_score": 5,
                                         "cab_required": true,
                                         "cab_approval_type": "majority",
-                                        "work_start_at": "2026-07-05T20:00:00Z",
-                                        "work_end_at": "2026-07-05T22:00:00Z"
+                                        "work_start_at": "2026-07-05T20:00:00",
+                                        "work_end_at": "2026-07-05T22:00:00"
                                     }
                                 }
                             }
@@ -8023,8 +8023,8 @@
                                     "description": "Update several fields at once — only what you send changes.",
                                     "value": {
                                         "assigned_to_id": 3,
-                                        "work_start_at": "2026-07-06T06:00:00Z",
-                                        "work_end_at": "2026-07-06T08:00:00Z"
+                                        "work_start_at": "2026-07-06T06:00:00",
+                                        "work_end_at": "2026-07-06T08:00:00"
                                     }
                                 },
                                 "example3": {
@@ -8033,8 +8033,8 @@
                                     "value": {
                                         "status": "Scheduled",
                                         "approver_id": 2,
-                                        "work_start_at": "2026-07-12T22:00:00Z",
-                                        "work_end_at": "2026-07-13T02:00:00Z",
+                                        "work_start_at": "2026-07-12T22:00:00",
+                                        "work_end_at": "2026-07-13T02:00:00",
                                         "risk_likelihood": 2,
                                         "risk_impact_score": 3
                                     }
@@ -11004,7 +11004,7 @@
                 ],
                 "summary": "List / board feed",
                 "operationId": "get_tasks",
-                "description": "Lists top-level tasks in board order by default (pass parent_task_id to list a task's subtasks). Each task carries its tags, subtask done/total counts and board position. Only tasks in the key's companies are listed.",
+                "description": "Lists top-level tasks in board order by default (pass parent_task_id to list a task's subtasks). Each task carries its company, tags, subtask done/total counts and board position. Only tasks in the key's companies are listed.",
                 "parameters": [
                     {
                         "name": "state",
@@ -11095,6 +11095,15 @@
                             "type": "string"
                         },
                         "description": "Tasks linked to a record"
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Only tasks in this company (the Default company includes tasks stored with no company). A company outside the key's list is 403"
                     },
                     {
                         "name": "parent_task_id",
@@ -11254,7 +11263,7 @@
                 ],
                 "summary": "Create a task",
                 "operationId": "post_tasks",
-                "description": "Creates a task exactly like the UI: defaults To Do / Medium, the card is appended to the end of its status column. Links to a ticket/change/contract are validated (a ticket link must be within the key's company scope); parent_task_id makes it a subtask. Tags must already exist (they're a curated list in Tasks > Settings).",
+                "description": "Creates a task exactly like the UI: defaults To Do / Medium, the card is appended to the end of its status column. Links to a ticket/change/contract are validated (a ticket, change or parent task must be within the key's company scope); parent_task_id makes it a subtask. The task's company is the one its ticket, change or parent task is in; otherwise company_id; otherwise the Default company (or, for a key that cannot reach Default, the key's own company). The response shows it as `company`. Tags must already exist (they're a curated list in Tasks > Settings).",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -11469,7 +11478,7 @@
                 ],
                 "summary": "Update a task",
                 "operationId": "patch_tasks_id",
-                "description": "Updates any combination of fields; null clears. Moving to a closed status stamps completed_at and fires the task.completed workflow event (moving back clears it). tags replaces the tag set.",
+                "description": "Updates any combination of fields; null clears. Moving to a closed status stamps completed_at and fires the task.completed workflow event (moving back clears it). tags replaces the tag set. The company cannot be changed here: company_id (or tenant_id) naming another company is 422 — move the task in the app instead (right-click it, Move to company).",
                 "parameters": [
                     {
                         "name": "id",
@@ -16381,7 +16390,7 @@
                 ],
                 "summary": "Update a domain",
                 "operationId": "patch_domains_id",
-                "description": "Send only the fields to change; \"\" or null clears one. Every change is written to the domain's history with source \"api\" and fires the domain.updated workflow event. auth_code is refused; the company cannot be changed here.",
+                "description": "Send only the fields to change; \"\" or null clears one. Every change is written to the domain's history with source \"api\" and fires the domain.updated workflow event. auth_code is refused. company_id cannot change here: a different company is 422 - use POST /domains/{id}/move-to-company; the company it is already in is accepted.",
                 "parameters": [
                     {
                         "name": "id",
@@ -16764,6 +16773,130 @@
                                     "properties": {
                                         "data": {
                                             "$ref": "#/components/schemas/DomainCheckResult"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the domains.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/domains/{id}/move-to-company": {
+            "post": {
+                "tags": [
+                    "Domains"
+                ],
+                "summary": "Move a domain to another company",
+                "operationId": "post_domains_id_move_to_company",
+                "description": "Moves the domain to another company the key can reach, with its internal view and its subdomains (they cannot be in a different company from it). Refused when the target company already has one of the names in the same scope, when the domain is linked to tickets or CMDB objects (links stay within one company, so unlink them first), or when it is linked to a contract. The registrar account, cost centre and customer person are cleared when the target company does not have them; `cleared` lists them. Each moved record gets a history entry and fires domain.updated. Returns the domain plus `moved` (records moved; 0 when it is already in that company), `moved_ids` and `cleared`. Moving a subdomain on its own is refused: move its parent.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Domain id (not a subdomain)"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "company_id": 3
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "domains.update",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DomainMoved"
                                         },
                                         "meta": {
                                             "allOf": [
@@ -20200,7 +20333,7 @@
                 ],
                 "summary": "Update a project",
                 "operationId": "patch_projects_id",
-                "description": "Change any of the fields accepted on create (not company_id or template). Only what is sent changes, and every change is written to the project's history. Setting status to closed stamps the actual finish if none is set. Switching methodology relabels the open stages and converts nothing. A change of health, dates or status is picked up by the alert scan at once, so the project manager's bell and project.* workflows react as they do to a change on screen.",
+                "description": "Change any of the fields accepted on create (not template). company_id cannot change here: a different company is 422 (since 5.5.0) - use POST /projects/{id}/move-to-company. Only what is sent changes, and every change is written to the project's history. Setting status to closed stamps the actual finish if none is set. Switching methodology relabels the open stages and converts nothing. A change of health, dates or status is picked up by the alert scan at once, so the project manager's bell and project.* workflows react as they do to a change on screen.",
                 "parameters": [
                     {
                         "name": "id",
@@ -20383,6 +20516,130 @@
                     },
                     "404": {
                         "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{id}/move-to-company": {
+            "post": {
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Move a project to another company",
+                "operationId": "post_projects_id_move_to_company",
+                "description": "Moves the project, its tasks and their subtasks to another company in one go (since 5.5.0, GH #370). Refused, saying what is in the way, when the project manager or anyone on the project cannot see the target company, or a task in it is linked to a ticket or change in another company - nobody is taken off the project for you. A location the target company cannot use is cleared (location_cleared). Links to other records stay as they are. Written to the project's history and to each moved task's, and fires project.updated. A single task in a project cannot be moved on its own: move the project.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Project id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "company_id": 5
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "projects.update",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "description": "The response payload."
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the projects.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -36010,6 +36267,54 @@
                     }
                 }
             },
+            "DomainMoved": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Domain"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "moved": {
+                                "type": "integer",
+                                "description": "Records moved: the domain, its internal view and subdomains. 0 when it was already in that company."
+                            },
+                            "moved_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "cleared": {
+                                "type": "array",
+                                "description": "Fields emptied because the new company does not have them.",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "domain": {
+                                            "type": "string"
+                                        },
+                                        "fields": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "registrar_account_id",
+                                                    "cost_centre_id",
+                                                    "customer_user_id"
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
             "TicketRelated": {
                 "type": "object",
                 "description": "Counts of what is on the ticket (only those whose sub-endpoint the key may read) and links to what it is linked with (only records the key may read).",
@@ -38274,22 +38579,22 @@
                         "properties": {
                             "work_start_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             },
                             "work_end_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             },
                             "outage_start_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             },
                             "outage_end_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             }
                         }
@@ -39024,22 +39329,22 @@
                         "properties": {
                             "work_start_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             },
                             "work_end_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             },
                             "outage_start_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             },
                             "outage_end_at": {
                                 "type": "string",
-                                "format": "date-time",
+                                "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                                 "nullable": true
                             }
                         }
@@ -39130,12 +39435,12 @@
                     },
                     "actual_start_at": {
                         "type": "string",
-                        "format": "date-time",
+                        "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                         "nullable": true
                     },
                     "actual_end_at": {
                         "type": "string",
-                        "format": "date-time",
+                        "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                         "nullable": true
                     },
                     "lessons_learned": {
@@ -45246,6 +45551,16 @@
                     "related": {
                         "$ref": "#/components/schemas/TaskRelated"
                     },
+                    "company": {
+                        "type": "object",
+                        "nullable": true,
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/NamedRef"
+                            }
+                        ],
+                        "description": "The company the task is in. A task stored with no company is in the Default company and is shown as it. null only on an install without companies set up."
+                    },
                     "collaborators": {
                         "type": "array",
                         "items": {
@@ -46002,12 +46317,12 @@
                     },
                     "work_start_at": {
                         "type": "string",
-                        "format": "date-time",
+                        "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                         "nullable": true
                     },
                     "work_end_at": {
                         "type": "string",
-                        "format": "date-time",
+                        "description": "Local wall-clock time with no time zone, YYYY-MM-DDTHH:MM:SS - shown exactly as sent; a Z or offset is refused (GH #375).",
                         "nullable": true
                     },
                     "work_all_day": {
