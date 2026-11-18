@@ -22,6 +22,10 @@ const page = {
 };
 const state = z.enum(["open", "closed", "all"]).optional().describe("Open, closed or all (default all)");
 const isoDate = (what: string) => z.string().optional().describe(`${what}, ISO 8601 e.g. 2026-11-01T00:00:00Z`);
+// Scheduled work (ticket work start, change work window) is local wall-clock time:
+// FreeITSM 5.5+ refuses a Z or offset; older installs accept the same form.
+const WALL_CLOCK = "local wall-clock time YYYY-MM-DDTHH:MM:SS, no Z or offset";
+const wallClock = (what: string) => z.string().optional().describe(`${what}, ${WALL_CLOCK}, e.g. 2026-11-01T00:00:00`);
 
 /**
  * The real path of a file the upload tool may read: it must exist inside the
@@ -260,7 +264,7 @@ To add a comment use freeitsm_add_ticket_note instead.`,
           origin_id: z.number().int().nullable().optional(),
           department_id: z.number().int().nullable().optional(),
           company_id: z.number().int().optional().describe("Move to another company (the key must reach both)"),
-          work_start_at: z.string().nullable().optional().describe("Scheduled work start, ISO 8601; null clears"),
+          work_start_at: z.string().nullable().optional().describe(`Scheduled work start, ${WALL_CLOCK}; null clears`),
           sensitivity: z.enum(["normal", "confidential"]).optional(),
           first_time_fix: z.boolean().optional(),
           it_training_provided: z.boolean().optional(),
@@ -366,7 +370,7 @@ is_internal=false makes the note visible to the requester - only do that when th
         description: `List or search change requests. "CHG-0042" in q finds a change by reference.
 
 Examples:
-  - "changes scheduled this week" -> work_start_from="2026-11-09T00:00:00Z", work_start_to="2026-11-16T00:00:00Z"
+  - "changes scheduled this week" -> work_start_from="2026-11-09T00:00:00", work_start_to="2026-11-16T00:00:00" (local wall-clock, no Z)
   - "open emergency changes" -> state="open", change_type="Emergency"`,
         inputSchema: z.strictObject({
           q: z.string().optional().describe('Search title, or a reference like "CHG-0042"'),
@@ -376,8 +380,8 @@ Examples:
           priority: z.string().optional(),
           risk_level: z.string().optional().describe("e.g. Low, Medium, High, Very High, Critical"),
           cab_required: z.boolean().optional(),
-          work_start_from: isoDate("Scheduled work starts on or after"),
-          work_start_to: isoDate("Scheduled work starts on or before"),
+          work_start_from: wallClock("Scheduled work starts on or after"),
+          work_start_to: wallClock("Scheduled work starts on or before"),
           sort: z.string().optional().describe("created_at, modified_at, id, title, work_start_at, risk_score, priority, status; '-' prefix for descending"),
           ...page,
         }),
