@@ -5,7 +5,7 @@
 A standalone [MCP](https://modelcontextprotocol.io) server that lets an AI assistant work with
 [FreeITSM](https://github.com/edmozley/freeitsm) through its REST API (`/api/v1`): search, read,
 create and update tickets, changes, problems, knowledge, assets and everything else the API offers
-(more than 300 endpoints in FreeITSM 5.4).
+(more than 300 endpoints in FreeITSM 5.5).
 
 **The API key is the security boundary.** The server is a plain API client: what the key may do
 (its permissions, company scope, expiry, rate limit and the analyst it acts as) is all the
