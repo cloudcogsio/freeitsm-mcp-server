@@ -11,7 +11,7 @@
  * clients afterwards.
  *
  * Run: npm run image:update                 (the :latest published from main)
- *      npm run image:update -- --tag 0.4.0  (a release)
+ *      npm run image:update -- --tag 0.4.1  (a release)
  *      npm run image:update -- --check      (only report whether an update exists; exits 1 if so)
  */
 import { execFileSync, spawnSync } from "node:child_process";
