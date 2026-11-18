@@ -88,6 +88,15 @@ test("search_tickets passes filters and reports more pages", async () => {
   assert.match(textOf(r), /page=2/);
 });
 
+test("search_changes and search_problems filter by company", async () => {
+  const { client } = await connect({ changes: ["read"], problems: ["read"] });
+  for (const [name, path] of [["freeitsm_search_changes", "/changes"], ["freeitsm_search_problems", "/problems"]]) {
+    await client.callTool({ name, arguments: { company_id: 3 } });
+    assert.equal(seen.at(-1)!.path, path);
+    assert.match(seen.at(-1)!.search, /company_id=3/, name);
+  }
+});
+
 test("get_ticket reports parts the key cannot read instead of failing", async () => {
   const { client } = await connect({ tickets: ["read"] });
   const r = await client.callTool({ name: "freeitsm_get_ticket", arguments: { id: 1, include: ["sla"] } });
