@@ -12,7 +12,7 @@ import type { Deps } from "./context.js";
 import { registerCuratedTools } from "./tools/curated.js";
 import { registerGenericTools } from "./tools/generic.js";
 
-export const VERSION = "0.4.3";
+export const VERSION = "0.4.4";
 
 function instructions(key: KeyInfo, readOnly: boolean): string {
   const companies = key.companies === null ? "every company its analyst can reach" : key.companies.map((c) => c.name).join(", ") || "none";
