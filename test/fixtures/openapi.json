@@ -3246,7 +3246,7 @@
                 ],
                 "summary": "List / search assets",
                 "operationId": "get_assets",
-                "description": "Lists assets with hardware, classification and lifecycle filters. Assets are install-wide (they have no company), so company scope does not apply.",
+                "description": "Lists assets with hardware, classification and lifecycle filters. Assets belong to companies: a key sees only its own companies' assets, and company_id narrows further (the Default company also matches assets with no company). Each asset returns its asset_tag and, beside purchase_cost, purchase_cost_basis (net / gross / null = not specified).",
                 "parameters": [
                     {
                         "name": "q",
@@ -3264,7 +3264,7 @@
                         "schema": {
                             "type": "string"
                         },
-                        "description": "Exact lookups"
+                        "description": "Exact lookups. asset_tag (5.7.0) is the number on the label, unique within its company"
                     },
                     {
                         "name": "service_tag",
@@ -3273,7 +3273,25 @@
                         "schema": {
                             "type": "string"
                         },
-                        "description": "Exact lookups"
+                        "description": "Exact lookups. asset_tag (5.7.0) is the number on the label, unique within its company"
+                    },
+                    {
+                        "name": "asset_tag",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Exact lookups. asset_tag (5.7.0) is the number on the label, unique within its company"
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Only this company's assets (must be within the key's scope - 403 otherwise)"
                     },
                     {
                         "name": "asset_type_id",
@@ -3483,6 +3501,21 @@
                                     "hostname": {
                                         "type": "string",
                                         "maxLength": 50
+                                    },
+                                    "asset_tag": {
+                                        "type": "string",
+                                        "maxLength": 64,
+                                        "description": "The label number, unique within the company; empty clears it. A clash is 409 and nothing else in the request is written."
+                                    },
+                                    "purchase_cost_basis": {
+                                        "type": "string",
+                                        "enum": [
+                                            "net",
+                                            "gross",
+                                            ""
+                                        ],
+                                        "nullable": true,
+                                        "description": "GH #403: net (excluding tax) or gross (including tax); empty or null = not specified. Any other value is 422."
                                     },
                                     "fields": {
                                         "type": "object",
@@ -3758,6 +3791,21 @@
                             "schema": {
                                 "type": "object",
                                 "properties": {
+                                    "asset_tag": {
+                                        "type": "string",
+                                        "maxLength": 64,
+                                        "description": "The label number, unique within the company; empty clears it. A clash is 409 and nothing else in the request is written."
+                                    },
+                                    "purchase_cost_basis": {
+                                        "type": "string",
+                                        "enum": [
+                                            "net",
+                                            "gross",
+                                            ""
+                                        ],
+                                        "nullable": true,
+                                        "description": "GH #403: net (excluding tax) or gross (including tax); empty or null = not specified. Any other value is 422."
+                                    },
                                     "fields": {
                                         "type": "object",
                                         "description": "Partial custom-field map, with the same validation and clear semantics as POST /assets. Values not supplied remain unchanged. An empty object changes nothing. Invalid custom values roll back core edits too.",
@@ -7497,7 +7545,7 @@
                 ],
                 "summary": "List / search changes",
                 "operationId": "get_changes",
-                "description": "Lists changes with filters, search, sorting and pagination. Changes are install-wide (not company-scoped), matching the UI.",
+                "description": "Lists changes with filters, search, sorting and pagination. Changes belong to companies: a key sees only its own companies' changes (every by-id call is a 404 outside them), and company_id narrows further - the Default company also matches changes with no company.",
                 "parameters": [
                     {
                         "name": "state",
@@ -7633,6 +7681,15 @@
                             "type": "string"
                         },
                         "description": "Search title; \"CHG-0042\" finds a change by its reference"
+                    },
+                    {
+                        "name": "company_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Only this company's changes (must be within the key's scope - 403 otherwise)"
                     },
                     {
                         "name": "work_start_from",
@@ -7991,7 +8048,7 @@
                 ],
                 "summary": "Update a change",
                 "operationId": "patch_changes_id",
-                "description": "Updates any combination of fields with full audit parity: human field labels, display names for lookups, status changes marked as such, risk score/level recomputed when likelihood/impact change, and the change.approved workflow event on a genuine transition into Approved. Plan bodies update silently (the UI does not audit long text). Send only what changes.",
+                "description": "Updates any combination of fields with full audit parity: human field labels, display names for lookups, status changes marked as such, risk score/level recomputed when likelihood/impact change, and the change.approved workflow event on a genuine transition into Approved. Plan bodies update silently (the UI does not audit long text). Send only what changes. company_id cannot change here: a different company is 422 - use POST /changes/{id}/move-to-company; the company it is already in is accepted.",
                 "parameters": [
                     {
                         "name": "id",
@@ -8205,6 +8262,130 @@
                     },
                     "409": {
                         "description": "The change has approval records and the approval rules do not allow deleting it.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/changes/{id}/move-to-company": {
+            "post": {
+                "tags": [
+                    "Changes"
+                ],
+                "summary": "Move a change to another company",
+                "operationId": "post_changes_id_move_to_company",
+                "description": "Moves the change to another company the key can reach, with the tasks linked to it and their subtasks (a task's change decides its company). Linked tickets are not moved: they must already be in the target company, so unlink the others first - the message names them. Also refused when a linked task cannot follow: it is part of a project, or linked to a ticket, contract or another change, in another company, or it is a subtask whose parent is in another company and not moving. Moving linked tasks needs write access to Tasks as well. Nothing moves when it is refused. The change's history records the new company, as does each task that moved. Returns the change plus `moved` (1, or 0 when it is already in that company), `tasks_moved` and `moved_task_ids`. The same move as Move to company on the change's right-click menu.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Change id"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object"
+                            },
+                            "examples": {
+                                "example1": {
+                                    "value": {
+                                        "company_id": 3
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "changes.update",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ChangeMoved"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the changes.update permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -9947,7 +10128,7 @@
                 ],
                 "summary": "List / search articles",
                 "operationId": "get_knowledge_articles",
-                "description": "Lists published articles with keyword search (title + body), tag filter and the review-cycle filters the module's review screen uses. archived=true lists the recycle bin instead (and runs the same retention auto-purge as the UI). The knowledge base is install-wide.",
+                "description": "Lists published articles with keyword search (title + body), tag filter and the review-cycle filters the module's review screen uses. archived=true lists the recycle bin instead (and runs the same retention auto-purge as the UI). The knowledge base is install-wide. Summaries include folder_id, tenant_id, audience and is_published. Reads enforce company scope and article/folder access lists.",
                 "parameters": [
                     {
                         "name": "q",
@@ -10038,6 +10219,42 @@
                             "type": "string"
                         },
                         "description": "Pagination (default 1 / 25, max per_page 100)"
+                    },
+                    {
+                        "name": "folder_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Folder ID, or root for unfiled articles."
+                    },
+                    {
+                        "name": "include_unpublished",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "true includes accessible staged/unpublished articles; default false."
+                    },
+                    {
+                        "name": "company",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Company ID or shared. Restricted to the key scope."
+                    },
+                    {
+                        "name": "audience",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "internal, customer or public."
                     }
                 ],
                 "x-permission": "knowledge.read",
@@ -10116,13 +10333,23 @@
                 ],
                 "summary": "Create an article",
                 "operationId": "post_knowledge_articles",
-                "description": "Creates an article, published immediately (the product has no draft workflow). Tags are created on the fly by name. If the module's OpenAI key is configured the search embedding is generated automatically, so AI chat finds API-written articles. Body is HTML stored as-is — send trusted HTML only.",
+                "description": "Create an article. Articles are published by default, as in the UI. For migration staging, explicitly send is_published=false and processing=suppress, with the final company, audience and access restrictions. Article content and access are committed atomically. Upload images to the new article, resolve internal links using returned IDs, then PATCH is_published=true with the current expected_revision and required_image_ids after client-side completeness checks. HTML is stored as supplied: sanitize source content before sending it. Unknown fields are rejected.",
                 "requestBody": {
                     "required": true,
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "object"
+                                "allOf": [
+                                    {
+                                        "$ref": "#/components/schemas/KnowledgeArticleWrite"
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "title"
+                                        ]
+                                    }
+                                ]
                             },
                             "examples": {
                                 "example1": {
@@ -10163,7 +10390,34 @@
                     }
                 },
                 "x-permission": "knowledge.create",
+                "x-permissions-also": [
+                    "knowledge_access.manage",
+                    "knowledge_imports.manage"
+                ],
                 "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeArticle"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
                     "201": {
                         "description": "Created.",
                         "content": {
@@ -10247,7 +10501,7 @@
                 ],
                 "summary": "Get one article",
                 "operationId": "get_knowledge_articles_id",
-                "description": "The full article with HTML body and tags. Unlike the UI, reading via the API does NOT bump the view counter unless you pass count_view=true — so sync jobs don't inflate the stats.",
+                "description": "The full article with HTML body and tags. Unlike the UI, reading via the API does NOT bump the view counter unless you pass count_view=true — so sync jobs don't inflate the stats. Includes folder_id, tenant_id, is_published and revision for guarded updates. A revision excludes view statistics and embedding refreshes. Use the separately authorized /access endpoint to read access-list entries.",
                 "parameters": [
                     {
                         "name": "id",
@@ -10341,7 +10595,7 @@
                 ],
                 "summary": "Update an article",
                 "operationId": "patch_knowledge_articles_id",
-                "description": "Updates title, body, tags (replaces the set), owner and review date. Pass save_as_version=true to snapshot the CURRENT content into the version history and bump the version number — exactly like the UI's \"Save as new version\". The search embedding is refreshed automatically.",
+                "description": "Update only the supplied fields of an unarchived article. Articles are published by default, as in the UI. For migration staging, explicitly send is_published=false and processing=suppress, with the final company, audience and access restrictions. Article content and access are committed atomically. Upload images to the new article, resolve internal links using returned IDs, then PATCH is_published=true with the current expected_revision and required_image_ids after client-side completeness checks. HTML is stored as supplied: sanitize source content before sending it. Unknown fields are rejected.",
                 "parameters": [
                     {
                         "name": "id",
@@ -10358,7 +10612,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "type": "object"
+                                "$ref": "#/components/schemas/KnowledgeArticleWrite"
                             },
                             "examples": {
                                 "example1": {
@@ -10395,6 +10649,10 @@
                     }
                 },
                 "x-permission": "knowledge.update",
+                "x-permissions-also": [
+                    "knowledge_access.manage",
+                    "knowledge_imports.manage"
+                ],
                 "responses": {
                     "200": {
                         "description": "Success.",
@@ -10976,6 +11234,1228 @@
                     },
                     "404": {
                         "description": "The article exists but has no snapshot with that version number.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/folders": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Read the folder hierarchy",
+                "operationId": "get_knowledge_folders",
+                "description": "Returns every accessible folder with id, parent_id, name, tenant_id and revision. A folder whose parent is inaccessible is returned at root with detached=true, as in the UI. Results are not paginated.",
+                "x-permission": "knowledge_folders.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/KnowledgeFolder"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_folders.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Create a folder",
+                "operationId": "post_knowledge_folders",
+                "description": "Creates a folder through the same service as the UI. Default access inherits from the parent. Optional access restrictions are applied before commit. Returns 201 for a new folder, 200 for a replay.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "name"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255
+                                    },
+                                    "parent_id": {
+                                        "type": "integer",
+                                        "nullable": true,
+                                        "minimum": 1
+                                    },
+                                    "tenant_id": {
+                                        "type": "integer",
+                                        "nullable": true,
+                                        "minimum": 1
+                                    },
+                                    "access": {
+                                        "$ref": "#/components/schemas/KnowledgeAccess"
+                                    },
+                                    "client_reference": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 191
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "knowledge_folders.create",
+                "x-permissions-also": [
+                    "knowledge_access.manage"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeFolder"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeFolder"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_folders.create permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/folders/{id}": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Read a folder",
+                "operationId": "get_knowledge_folders_id",
+                "description": "Returns an accessible folder and revision.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Folder ID."
+                    }
+                ],
+                "x-permission": "knowledge_folders.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeFolder"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_folders.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/articles/{id}/access": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Read Knowledge access rules",
+                "operationId": "get_knowledge_articles_id_access",
+                "description": "Requires the Knowledge administrator floor and object/company access. Returns is_restricted, inherits, entries and revision. These are the explicit rules, not a flattened effective ACL. Folder hierarchy and the installation permission model determine inherited access. The response also reports permission_model (containers or filing), so inherited rules can be interpreted without guessing the installation policy.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Object ID."
+                    }
+                ],
+                "x-permission": "knowledge_access.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeAccess"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_access.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Replace Knowledge access rules",
+                "operationId": "patch_knowledge_articles_id_access",
+                "description": "Replaces rules and entries atomically after checking the current revision. Unlike the UI polarity toggle, this supplies the complete replacement list explicitly. The response also reports permission_model (containers or filing), so inherited rules can be interpreted without guessing the installation policy.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Object ID."
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "access",
+                                    "expected_revision"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "access": {
+                                        "$ref": "#/components/schemas/KnowledgeAccess"
+                                    },
+                                    "expected_revision": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "knowledge_access.manage",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeAccess"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_access.manage permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/folders/{id}/access": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Read Knowledge access rules",
+                "operationId": "get_knowledge_folders_id_access",
+                "description": "Requires the Knowledge administrator floor and object/company access. Returns is_restricted, inherits, entries and revision. These are the explicit rules, not a flattened effective ACL. Folder hierarchy and the installation permission model determine inherited access. The response also reports permission_model (containers or filing), so inherited rules can be interpreted without guessing the installation policy.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Object ID."
+                    }
+                ],
+                "x-permission": "knowledge_access.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeAccess"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_access.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Replace Knowledge access rules",
+                "operationId": "patch_knowledge_folders_id_access",
+                "description": "Replaces rules and entries atomically after checking the current revision. Unlike the UI polarity toggle, this supplies the complete replacement list explicitly. The response also reports permission_model (containers or filing), so inherited rules can be interpreted without guessing the installation policy.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Object ID."
+                    }
+                ],
+                "requestBody": {
+                    "required": false,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "access",
+                                    "expected_revision"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "access": {
+                                        "$ref": "#/components/schemas/KnowledgeAccess"
+                                    },
+                                    "expected_revision": {
+                                        "type": "string",
+                                        "pattern": "^[0-9a-f]{64}$"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "knowledge_access.manage",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeAccess"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_access.manage permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/articles/{id}/images": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "List article images",
+                "operationId": "get_knowledge_articles_id_images",
+                "description": "Lists image IDs, article_id, filename, mime_type, size_bytes, sha256 and stable session-aware url. Requires current article access.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Article ID."
+                    }
+                ],
+                "x-permission": "knowledge_images.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/KnowledgeImage"
+                                            }
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_images.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Upload a protected inline image",
+                "operationId": "post_knowledge_articles_id_images",
+                "description": "JSON upload. The largest decoded image is chosen by an administrator in Knowledge > Settings > Images (5, 10, 20, 25 or 50 MiB; 10 MiB unless changed) - read it, and the accepted formats, from GET /knowledge/images/constraints rather than hard-coding it. base64 makes the request about a third larger than the image. PHP memory_limit and any web server or proxy body limit (nginx defaults to 1 MB) also apply, and a request over PHP post_max_size makes PHP warn on every upload; FreeITSM reports PHP's limits but never changes them. Uses the shared image extension/content whitelist (PNG, JPEG, GIF, WebP, BMP, HEIC/HEIF; no SVG), random storage names and the existing protected uploads volume. The parent article must exist and be writable before any file is stored. No unattached/public uploads. Reuse the returned url in HTML; it re-checks article access on every read for signed-in analysts and portal users; nobody signed in gets 404, even for a public article. API clients use /knowledge/images/{id}/content with their key. Each image belongs to one article; copying content to another article requires its own upload. Original images linked from thumbnails can be uploaded separately.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Article ID."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "filename",
+                                    "content_base64"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "filename": {
+                                        "type": "string"
+                                    },
+                                    "content_base64": {
+                                        "type": "string",
+                                        "format": "byte",
+                                        "maxLength": 13981016
+                                    },
+                                    "client_reference": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 191
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-permission": "knowledge_images.create",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeImage"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeImage"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "The request body is not valid JSON.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_images.create permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "A required field is missing, or a field value is not acceptable.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/images/constraints": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Image upload limits and formats",
+                "operationId": "get_knowledge_images_constraints",
+                "description": "GH #417. Returns max_bytes (the largest decoded image accepted, chosen by an administrator: 5, 10, 20, 25 or 50 MiB, 10 MiB unless changed), default_max_bytes, max_base64_length, encoding, the accepted formats (extension and MIME types; never SVG), request_max_bytes (PHP post_max_size, null when unlimited - a request above it is still read, but PHP warns on each one) and within_server_limits (false when PHP's post_max_size or memory_limit is too small for an image of max_bytes). A web server or proxy in front of PHP can set a lower body limit that this cannot see.",
+                "x-permission": "knowledge_images.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/KnowledgeImageConstraints"
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_images.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/images/{id}/content": {
+            "get": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Retrieve protected image bytes",
+                "operationId": "get_knowledge_images_id_content",
+                "description": "Binary response with image MIME type, nosniff and private/no-store caching. Requires current parent-article access; inaccessible or missing images return 404. Inline HTML uses the returned session-aware url instead of embedding API credentials.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Image ID."
+                    }
+                ],
+                "x-permission": "knowledge_images.read",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "image/*": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_images.read permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "The key exceeded its per-minute rate limit.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/knowledge/articles/{id}/images/{image_id}": {
+            "delete": {
+                "tags": [
+                    "Knowledge base"
+                ],
+                "summary": "Delete an article image",
+                "operationId": "delete_knowledge_articles_id_images_image_id",
+                "description": "Removes the image metadata and its file after checking article write access. References remain tombstones, so replaying the upload cannot resurrect the image. Returns file_removed=false if disk cleanup failed; the image is already inaccessible. Deletion also invalidates the article revision. Archived articles keep images until permanent deletion or recycle-bin retention purges them. Abandoned uploads remain attached to their staged article and can be explicitly deleted. A process crash may leave unreferenced bytes in the protected upload directory, requiring administrator cleanup. Non-Apache web servers must deny direct access to uploads/knowledge; Apache protection is included.",
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Article ID."
+                    },
+                    {
+                        "name": "image_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Image ID belonging to this article."
+                    }
+                ],
+                "x-permission": "knowledge_images.delete",
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "description": "The response payload."
+                                        },
+                                        "meta": {
+                                            "allOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/PaginationMeta"
+                                                }
+                                            ],
+                                            "nullable": true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "The API key is missing or invalid.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "The key does not have the knowledge_images.delete permission.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No record with that id (or it is outside the key's company scope).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -26891,7 +28371,7 @@
                 ],
                 "summary": "The day board",
                 "operationId": "get_morning_checks_board",
-                "description": "Every ACTIVE check with its result for one date (null if not yet done) — the dashboard's exact view. Results whose status was later deleted come back with is_orphan and the original label. Install-wide.",
+                "description": "Every ACTIVE check with its result for one date (null if not yet done) — the dashboard's exact view. Results whose status was later deleted come back with is_orphan and the original label. Install-wide. Each check carries due (does its schedule fall on this date?) and its schedule - a check that is not due is still listed and can still be recorded.",
                 "parameters": [
                     {
                         "name": "date",
@@ -27408,7 +28888,7 @@
                 ],
                 "summary": "Add a check",
                 "operationId": "post_morning_checks_checks",
-                "description": "Only name is required.",
+                "description": "Only name is required. schedule says when it falls due: {type: daily | weekdays | weekly | monthly, days: [1-7] for weekly (1 = Monday), month_when: day | first_weekday | last_weekday | last_day, month_day: 1-31} - absent means every day.",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -27616,7 +29096,7 @@
                 ],
                 "summary": "Update a check",
                 "operationId": "patch_morning_checks_checks_id",
-                "description": "Send only what changes. Deactivating (is_active: false) removes it from the board but keeps its history.",
+                "description": "Send only what changes. Deactivating (is_active: false) removes it from the board but keeps its history. schedule says when it falls due: {type: daily | weekdays | weekly | monthly, days: [1-7] for weekly (1 = Monday), month_when: day | first_weekday | last_weekday | last_day, month_day: 1-31} - null means every day.",
                 "parameters": [
                     {
                         "name": "id",
@@ -36267,6 +37747,32 @@
                     }
                 }
             },
+            "ChangeMoved": {
+                "allOf": [
+                    {
+                        "$ref": "#/components/schemas/Change"
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "moved": {
+                                "type": "integer",
+                                "description": "1 when the change moved; 0 when it was already in that company."
+                            },
+                            "tasks_moved": {
+                                "type": "integer",
+                                "description": "Linked tasks (with their subtasks) that moved with it."
+                            },
+                            "moved_task_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
             "DomainMoved": {
                 "allOf": [
                     {
@@ -37367,6 +38873,11 @@
                     "hostname": {
                         "type": "string"
                     },
+                    "asset_tag": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "The number on the asset's label, unique within its company. Filter with ?asset_tag=; change with PATCH (5.7.0)."
+                    },
                     "type": {
                         "type": "object",
                         "nullable": true,
@@ -37492,6 +39003,16 @@
                             "purchase_cost": {
                                 "type": "number",
                                 "nullable": true
+                            },
+                            "purchase_cost_basis": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                    "net",
+                                    "gross",
+                                    null
+                                ],
+                                "description": "GH #403: net = excluding tax, gross = including tax, null = not specified. A label on purchase_cost; setting it never changes the amount."
                             },
                             "supplier": {
                                 "type": "object",
@@ -37912,6 +39433,16 @@
                                     "purchase_cost": {
                                         "type": "number",
                                         "nullable": true
+                                    },
+                                    "purchase_cost_basis": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "enum": [
+                                            "net",
+                                            "gross",
+                                            null
+                                        ],
+                                        "description": "GH #403: net = excluding tax, gross = including tax, null = not specified. A label on purchase_cost; setting it never changes the amount."
                                     },
                                     "supplier": {
                                         "type": "object",
@@ -42324,6 +43855,276 @@
                     }
                 }
             },
+            "KnowledgeAccess": {
+                "type": "object",
+                "required": [
+                    "is_restricted",
+                    "inherits",
+                    "entries"
+                ],
+                "properties": {
+                    "is_restricted": {
+                        "type": "boolean"
+                    },
+                    "inherits": {
+                        "type": "boolean"
+                    },
+                    "entries": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "principal_type",
+                                "principal_id"
+                            ],
+                            "additionalProperties": false,
+                            "properties": {
+                                "principal_type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "analyst",
+                                        "team",
+                                        "user",
+                                        "user_group"
+                                    ]
+                                },
+                                "principal_id": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                }
+                            }
+                        }
+                    },
+                    "revision": {
+                        "type": "string",
+                        "readOnly": true
+                    },
+                    "permission_model": {
+                        "type": "string",
+                        "enum": [
+                            "containers",
+                            "filing"
+                        ],
+                        "readOnly": true
+                    }
+                }
+            },
+            "KnowledgeFolder": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "parent_id",
+                    "name",
+                    "tenant_id",
+                    "revision"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "parent_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "tenant_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "revision": {
+                        "type": "string"
+                    },
+                    "detached": {
+                        "type": "boolean"
+                    },
+                    "replayed": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "KnowledgeImage": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "article_id",
+                    "filename",
+                    "mime_type",
+                    "size_bytes",
+                    "sha256",
+                    "url"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "article_id": {
+                        "type": "integer"
+                    },
+                    "filename": {
+                        "type": "string"
+                    },
+                    "mime_type": {
+                        "type": "string"
+                    },
+                    "size_bytes": {
+                        "type": "integer"
+                    },
+                    "sha256": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "replayed": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "KnowledgeImageConstraints": {
+                "type": "object",
+                "description": "GH #417: the image size limit and formats in force on this install.",
+                "required": [
+                    "max_bytes",
+                    "default_max_bytes",
+                    "max_base64_length",
+                    "encoding",
+                    "formats",
+                    "request_max_bytes",
+                    "within_server_limits"
+                ],
+                "properties": {
+                    "max_bytes": {
+                        "type": "integer",
+                        "description": "Largest decoded image accepted, chosen by an administrator."
+                    },
+                    "default_max_bytes": {
+                        "type": "integer",
+                        "description": "The limit when no administrator has chosen one (10 MiB)."
+                    },
+                    "max_base64_length": {
+                        "type": "integer",
+                        "description": "Longest content_base64 accepted - base64 is about a third larger than the image."
+                    },
+                    "encoding": {
+                        "type": "string",
+                        "enum": [
+                            "base64"
+                        ]
+                    },
+                    "formats": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "extension",
+                                "mime_types"
+                            ],
+                            "properties": {
+                                "extension": {
+                                    "type": "string"
+                                },
+                                "mime_types": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "request_max_bytes": {
+                        "type": "integer",
+                        "nullable": true,
+                        "description": "PHP post_max_size in bytes; null when PHP sets none. A request above it is still read, but PHP warns on each one. A web server or proxy in front may set a lower limit this cannot see."
+                    },
+                    "within_server_limits": {
+                        "type": "boolean",
+                        "description": "False when PHP's post_max_size or memory_limit is too small for an image of max_bytes."
+                    }
+                }
+            },
+            "KnowledgeArticleWrite": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255
+                    },
+                    "body_html": {
+                        "type": "string"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "owner_id": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1
+                    },
+                    "next_review_date": {
+                        "type": "string",
+                        "format": "date",
+                        "nullable": true
+                    },
+                    "tenant_id": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1
+                    },
+                    "folder_id": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1
+                    },
+                    "audience": {
+                        "type": "string",
+                        "enum": [
+                            "internal",
+                            "customer",
+                            "public"
+                        ]
+                    },
+                    "is_published": {
+                        "type": "boolean"
+                    },
+                    "save_as_version": {
+                        "type": "boolean"
+                    },
+                    "access": {
+                        "$ref": "#/components/schemas/KnowledgeAccess"
+                    },
+                    "processing": {
+                        "type": "string",
+                        "enum": [
+                            "normal",
+                            "suppress"
+                        ]
+                    },
+                    "client_reference": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 191
+                    },
+                    "expected_revision": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "required_image_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    }
+                }
+            },
             "KnowledgeArticle": {
                 "type": "object",
                 "description": "The full article as returned by get/create/update/restore — full HTML body instead of a preview.",
@@ -42345,6 +44146,58 @@
                     "has_embedding"
                 ],
                 "properties": {
+                    "tenant_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "folder_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "is_published": {
+                        "type": "boolean"
+                    },
+                    "revision": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "replayed": {
+                        "type": "boolean"
+                    },
+                    "processing": {
+                        "type": "object",
+                        "properties": {
+                            "search": {
+                                "type": "string",
+                                "enum": [
+                                    "indexed",
+                                    "unavailable",
+                                    "failed",
+                                    "not_repeated"
+                                ]
+                            },
+                            "ai": {
+                                "type": "string",
+                                "enum": [
+                                    "generated",
+                                    "not_configured",
+                                    "failed",
+                                    "suppressed",
+                                    "not_repeated"
+                                ]
+                            },
+                            "workflows": {
+                                "type": "string",
+                                "enum": [
+                                    "dispatched",
+                                    "not_applicable",
+                                    "failed",
+                                    "suppressed",
+                                    "not_repeated"
+                                ]
+                            }
+                        }
+                    },
                     "id": {
                         "type": "integer"
                     },
@@ -42509,6 +44362,17 @@
                     "preview"
                 ],
                 "properties": {
+                    "tenant_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "folder_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "is_published": {
+                        "type": "boolean"
+                    },
                     "id": {
                         "type": "integer"
                     },
