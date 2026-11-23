@@ -78,7 +78,7 @@ are owned by root, so the process cannot modify its own code.
 
 Every change to `main` is tested, scanned and published to the GitHub Container Registry, for
 amd64 and arm64, with an SBOM and a signed build provenance attestation. Releases also get version
-tags (`0.4.2`, `0.4`).
+tags (`0.4.3`, `0.4`).
 
 ```bash
 docker pull ghcr.io/cloudcogsio/freeitsm-mcp-server:latest
@@ -90,7 +90,7 @@ For production, refer to the image by digest (`ghcr.io/cloudcogsio/freeitsm-mcp-
 in the client entry below, so it changes only when you change it. From a checkout of this
 repository, `npm run image:update` does the same for a local tag: it verifies the attestation of
 the current published image, pulls exactly that digest and tags it `freeitsm-mcp-server:latest`
-(`-- --check` only reports whether there is an update; `-- --tag 0.4.2` picks a release).
+(`-- --check` only reports whether there is an update; `-- --tag 0.4.3` picks a release).
 
 ### Building it yourself
 
