@@ -72,11 +72,17 @@ test("a ticket-read key only gets reading tools", async () => {
 });
 
 test("read-only mode hides write tools even for a full key", async () => {
-  const { names } = await connect({ tickets: ["read", "create", "update"], ticket_notes: ["read", "create"] }, { FREEITSM_READ_ONLY: "true" });
+  const { client, names } = await connect({ tickets: ["read", "create", "update"], ticket_notes: ["read", "create"] }, { FREEITSM_READ_ONLY: "true" });
   assert.ok(names.includes("freeitsm_search_tickets"));
   assert.ok(!names.includes("freeitsm_create_ticket"));
   assert.ok(!names.includes("freeitsm_add_ticket_note"));
   assert.ok(!names.includes("freeitsm_api_write"));
+  assert.doesNotMatch(client.getInstructions() ?? "", /move-to-company/);
+});
+
+test("writable servers explain how to move records to another company", async () => {
+  const { client } = await connect({ tickets: ["read", "update"] });
+  assert.match(client.getInstructions() ?? "", /POST \/changes\/\{id\}\/move-to-company/);
 });
 
 test("search_tickets passes filters and reports more pages", async () => {

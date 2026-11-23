@@ -26,6 +26,9 @@ function instructions(key: KeyInfo, readOnly: boolean): string {
     "FreeITSM counts refused calls (403/404) against the key and can switch it off after many in a short time: find ids by searching or listing, never by guessing or trying ids in a row. Document downloads are logged and limited per hour.",
     "Prefer the dedicated freeitsm_* tools. For anything else: freeitsm_list_endpoints -> freeitsm_describe_endpoint -> freeitsm_api_get / freeitsm_api_write.",
     "Look up valid names and ids with freeitsm_reference_data.",
+    ...(readOnly
+      ? []
+      : ["To move a change, project or domain to another company, use freeitsm_api_write with POST /changes/{id}/move-to-company (or /projects/..., /domains/...) and {\"company_id\": N}; PATCH refuses a different company_id. Tickets move with freeitsm_update_ticket."]),
   ].join("\n");
 }
 
